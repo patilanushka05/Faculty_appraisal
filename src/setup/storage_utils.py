@@ -4,7 +4,7 @@ import uuid
 
 BUCKET_NAME = "faculty-docs"
 
-async def upload_file_to_supabase(file: UploadFile, faculty_id: int) -> str:
+async def upload_file_to_supabase(file: UploadFile, faculty_id: str) -> str:
     """
     Uploads a file to Supabase Storage and returns the file path.
     Path format: {faculty_id}/{uuid}_{original_filename}
@@ -12,7 +12,8 @@ async def upload_file_to_supabase(file: UploadFile, faculty_id: int) -> str:
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
-    supabase = get_supabase()
+    # Use service role to bypass RLS for backend-initiated uploads
+    supabase = get_supabase(use_service_role=True)
     file_content = await file.read()
     
     # Create a unique filename to avoid collisions
