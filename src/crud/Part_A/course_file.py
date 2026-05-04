@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from ...models.Part_A.course_file import CourseFile
@@ -8,51 +9,53 @@ from ...schema.Part_A.course_file import (
     CourseFileUpdateHOD,
 )
 
-def get_course_file(db: Session, id: str) -> Optional[CourseFile]:
-    return db.query(CourseFile).filter(CourseFile.id == id).first()
+async def get_course_file(db: AsyncSession, id: str) -> Optional[CourseFile]:
+    result = await db.execute(select(CourseFile).where(CourseFile.id == id))
+    return result.scalars().first()
 
-def get_course_files_by_faculty(db: Session, faculty_id: str) -> List[CourseFile]:
-    return db.query(CourseFile).filter(CourseFile.faculty_id == faculty_id).all()
+async def get_course_files_by_faculty(db: AsyncSession, faculty_id: str) -> List[CourseFile]:
+    result = await db.execute(select(CourseFile).where(CourseFile.faculty_id == faculty_id))
+    return result.scalars().all()
 
-def create_course_file(db: Session, course_file: CourseFileCreate, faculty_id: str) -> CourseFile:
+async def create_course_file(db: AsyncSession, course_file: CourseFileCreate, faculty_id: str) -> CourseFile:
     db_course_file = CourseFile(**course_file.model_dump(), faculty_id=faculty_id)
     db.add(db_course_file)
-    db.commit()
-    db.refresh(db_course_file)
+    await db.commit()
+    await db.refresh(db_course_file)
     return db_course_file
 
-def update_course_file_faculty(
-    db: Session, id: str, course_file_update: CourseFileUpdateFaculty
+async def update_course_file_faculty(
+    db: AsyncSession, id: str, course_file_update: CourseFileUpdateFaculty
 ) -> Optional[CourseFile]:
-    db_course_file = get_course_file(db, id)
+    db_course_file = await get_course_file(db, id)
     if db_course_file:
         update_data = course_file_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_course_file, key, value)
-        db.commit()
-        db.refresh(db_course_file)
+        await db.commit()
+        await db.refresh(db_course_file)
     return db_course_file
 
-def update_course_file_hod(
-    db: Session, id: str, course_file_update: CourseFileUpdateHOD
+async def update_course_file_hod(
+    db: AsyncSession, id: str, course_file_update: CourseFileUpdateHOD
 ) -> Optional[CourseFile]:
-    db_course_file = get_course_file(db, id)
+    db_course_file = await get_course_file(db, id)
     if db_course_file:
         update_data = course_file_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_course_file, key, value)
-        db.commit()
-        db.refresh(db_course_file)
+        await db.commit()
+        await db.refresh(db_course_file)
     return db_course_file
 
-def delete_course_file(db: Session, id: str) -> bool:
-    db_course_file = get_course_file(db, id)
+async def delete_course_file(db: AsyncSession, id: str) -> bool:
+    db_course_file = await get_course_file(db, id)
     if db_course_file:
-        db.delete(db_course_file)
-        db.commit()
+        await db.delete(db_course_file)
+        await db.commit()
         return True
     return False
 
-def get_course_file_total_score(db: Session, faculty_id: str) -> float:
-    entries = get_course_files_by_faculty(db, faculty_id)
-    return sum([e.api_score_faculty for e in entries])
+async def get_course_file_total_score(db: AsyncSession, faculty_id: str) -> float:
+    entries = await get_course_files_by_faculty(db, faculty_id)
+    return sum([e.api_score_faculty or 0.0 for e in entries])

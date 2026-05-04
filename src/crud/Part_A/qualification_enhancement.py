@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from ...models.Part_A.qualification_enhancement import QualificationEnhancement
@@ -9,61 +10,63 @@ from ...schema.Part_A.qualification_enhancement import (
     QualificationEnhancementUpdateDirector,
 )
 
-def get_qualification_enhancement(db: Session, id: str) -> Optional[QualificationEnhancement]:
-    return db.query(QualificationEnhancement).filter(QualificationEnhancement.id == id).first()
+async def get_qualification_enhancement(db: AsyncSession, id: str) -> Optional[QualificationEnhancement]:
+    result = await db.execute(select(QualificationEnhancement).where(QualificationEnhancement.id == id))
+    return result.scalars().first()
 
-def get_qualification_enhancements_by_faculty(db: Session, faculty_id: str) -> List[QualificationEnhancement]:
-    return db.query(QualificationEnhancement).filter(QualificationEnhancement.faculty_id == faculty_id).all()
+async def get_qualification_enhancements_by_faculty(db: AsyncSession, faculty_id: str) -> List[QualificationEnhancement]:
+    result = await db.execute(select(QualificationEnhancement).where(QualificationEnhancement.faculty_id == faculty_id))
+    return result.scalars().all()
 
-def create_qualification_enhancement(
-    db: Session, qualification: QualificationEnhancementCreate, faculty_id: str
+async def create_qualification_enhancement(
+    db: AsyncSession, qualification: QualificationEnhancementCreate, faculty_id: str
 ) -> QualificationEnhancement:
     db_qualification = QualificationEnhancement(**qualification.model_dump(), faculty_id=faculty_id)
     db.add(db_qualification)
-    db.commit()
-    db.refresh(db_qualification)
+    await db.commit()
+    await db.refresh(db_qualification)
     return db_qualification
 
-def update_qualification_enhancement_faculty(
-    db: Session, id: str, qualification_update: QualificationEnhancementUpdateFaculty
+async def update_qualification_enhancement_faculty(
+    db: AsyncSession, id: str, qualification_update: QualificationEnhancementUpdateFaculty
 ) -> Optional[QualificationEnhancement]:
-    db_qualification = get_qualification_enhancement(db, id)
+    db_qualification = await get_qualification_enhancement(db, id)
     if db_qualification:
         update_data = qualification_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_qualification, key, value)
-        db.commit()
-        db.refresh(db_qualification)
+        await db.commit()
+        await db.refresh(db_qualification)
     return db_qualification
 
-def update_qualification_enhancement_hod(
-    db: Session, id: str, qualification_update: QualificationEnhancementUpdateHOD
+async def update_qualification_enhancement_hod(
+    db: AsyncSession, id: str, qualification_update: QualificationEnhancementUpdateHOD
 ) -> Optional[QualificationEnhancement]:
-    db_qualification = get_qualification_enhancement(db, id)
+    db_qualification = await get_qualification_enhancement(db, id)
     if db_qualification:
         db_qualification.api_score_hod = qualification_update.api_score_hod
-        db.commit()
-        db.refresh(db_qualification)
+        await db.commit()
+        await db.refresh(db_qualification)
     return db_qualification
 
-def update_qualification_enhancement_director(
-    db: Session, id: str, qualification_update: QualificationEnhancementUpdateDirector
+async def update_qualification_enhancement_director(
+    db: AsyncSession, id: str, qualification_update: QualificationEnhancementUpdateDirector
 ) -> Optional[QualificationEnhancement]:
-    db_qualification = get_qualification_enhancement(db, id)
+    db_qualification = await get_qualification_enhancement(db, id)
     if db_qualification:
         db_qualification.api_score_director = qualification_update.api_score_director
-        db.commit()
-        db.refresh(db_qualification)
+        await db.commit()
+        await db.refresh(db_qualification)
     return db_qualification
 
-def delete_qualification_enhancement(db: Session, id: str) -> bool:
-    db_qualification = get_qualification_enhancement(db, id)
+async def delete_qualification_enhancement(db: AsyncSession, id: str) -> bool:
+    db_qualification = await get_qualification_enhancement(db, id)
     if db_qualification:
-        db.delete(db_qualification)
-        db.commit()
+        await db.delete(db_qualification)
+        await db.commit()
         return True
     return False
 
-def get_qualification_enhancement_total_score(db: Session, faculty_id: str) -> float:
-    entries = get_qualification_enhancements_by_faculty(db, faculty_id)
-    return sum([e.api_score_faculty for e in entries])
+async def get_qualification_enhancement_total_score(db: AsyncSession, faculty_id: str) -> float:
+    entries = await get_qualification_enhancements_by_faculty(db, faculty_id)
+    return sum([e.api_score_faculty or 0.0 for e in entries])

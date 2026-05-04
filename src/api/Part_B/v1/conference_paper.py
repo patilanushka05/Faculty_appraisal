@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
-from sqlalchemy.orm import Session
-from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional, Annotated
 from datetime import date
 
 from ....setup.dependencies import get_db, CurrentUser
@@ -20,15 +20,15 @@ router = APIRouter()
 
 @router.post("/conferences", response_model=ConferencePaperResponse, status_code=status.HTTP_201_CREATED)
 async def create_conference_paper(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    event_title: str = Form(...),
-    event_date: date = Form(...),
-    activity_type: str = Form(...),
-    hosting_organization: str = Form(...),
-    event_level: str = Form(...),
-    department: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    event_title: Annotated[str, Form()] = ...,
+    event_date: Annotated[date, Form()] = ...,
+    activity_type: Annotated[str, Form()] = ...,
+    hosting_organization: Annotated[str, Form()] = ...,
+    event_level: Annotated[str, Form()] = ...,
+    department: Annotated[Optional[str], Form()] = None,
+    file: Optional[UploadFile] = File(None)
 ):
     if "faculty" not in current_user.roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to create conference papers")
@@ -47,59 +47,58 @@ async def create_conference_paper(
         document=document_path
     )
     
-    return crud_conference_paper.create_conference_paper(db=db, paper=paper, faculty_id=current_user.id)
+    return await crud_conference_paper.create_conference_paper(db=db, paper=paper, faculty_id=current_user.id)
 
 @router.get("/conferences/faculty/{faculty_id}", response_model=List[ConferencePaperResponse])
-def read_conference_papers_by_faculty(
+async def read_conference_papers_by_faculty(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    faculty_id: str,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
+    faculty_id: str = Path(...),
+    skip: int = Query(0),
+    limit: int = Query(100)
 ):
-    if "admin" not in current_user.roles and current_user.id != faculty_id:
+    if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this faculty's conference papers")
     
-    papers = crud_conference_paper.get_conference_papers_by_faculty(db, faculty_id=faculty_id, skip=skip, limit=limit)
+    papers = await crud_conference_paper.get_conference_papers_by_faculty(db, faculty_id=faculty_id, skip=skip, limit=limit)
     return papers
 
 @router.get("/conferences", response_model=List[ConferencePaperResponse])
-def read_all_conference_papers(
+async def read_all_conference_papers(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
+    skip: int = Query(0),
+    limit: int = Query(100)
 ):
-    if "admin" not in current_user.roles:
+    if not any(role in ["admin", "dean", "vc"] for role in current_user.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view all conference papers")
     
-    papers = crud_conference_paper.get_all_conference_papers(db, skip=skip, limit=limit)
+    papers = await crud_conference_paper.get_all_conference_papers(db, skip=skip, limit=limit)
     return papers
 
 @router.put("/conferences/{paper_id}", response_model=ConferencePaperResponse)
-def update_conference_paper(
+async def update_conference_paper(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    paper_id: str,
-    paper_update: ConferencePaperUpdateFaculty, # Default to faculty update schema
-    db: Session = Depends(get_db)
+    paper_id: str = Path(...),
+    paper_update: ConferencePaperUpdateFaculty = None
 ):
-    db_paper = crud_conference_paper.get_conference_paper(db, paper_id)
+    db_paper = await crud_conference_paper.get_conference_paper(db, paper_id)
     if db_paper is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conference Paper not found")
 
+    if not current_user.has_authority_over(db_paper.faculty_id, "faculty", getattr(db_paper, "department", None)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this conference paper")
+
     # Role-based update logic
     if "admin" in current_user.roles:
-        updated_paper = crud_conference_paper.update_conference_paper_faculty(db, paper_id, paper_update)
+        updated_paper = await crud_conference_paper.update_conference_paper_faculty(db, paper_id, paper_update)
     elif "hod" in current_user.roles:
-        if not isinstance(paper_update, ConferencePaperUpdateHOD):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="HOD can only update research_score_hod")
-        updated_paper = crud_conference_paper.update_conference_paper_hod(db, paper_id, paper_update)
+        updated_paper = await crud_conference_paper.update_conference_paper_hod(db, paper_id, paper_update)
     elif "director" in current_user.roles:
-        if not isinstance(paper_update, ConferencePaperUpdateDirector):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Director can only update research_score_director")
-        updated_paper = crud_conference_paper.update_conference_paper_director(db, paper_id, paper_update)
+        updated_paper = await crud_conference_paper.update_conference_paper_director(db, paper_id, paper_update)
     elif "faculty" in current_user.roles and db_paper.faculty_id == current_user.id:
-        updated_paper = crud_conference_paper.update_conference_paper_faculty(db, paper_id, paper_update)
+        updated_paper = await crud_conference_paper.update_conference_paper_faculty(db, paper_id, paper_update)
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this conference paper")
 
@@ -108,29 +107,29 @@ def update_conference_paper(
     return updated_paper
 
 @router.delete("/conferences/{paper_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_conference_paper(
+async def delete_conference_paper(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    paper_id: str,
-    db: Session = Depends(get_db)
+    paper_id: str = Path(...)
 ):
-    db_paper = crud_conference_paper.get_conference_paper(db, paper_id)
+    db_paper = await crud_conference_paper.get_conference_paper(db, paper_id)
     if db_paper is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conference Paper not found")
 
-    if "admin" not in current_user.roles and db_paper.faculty_id != current_user.id:
+    if not current_user.has_authority_over(db_paper.faculty_id, "faculty", getattr(db_paper, "department", None)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this conference paper")
     
-    crud_conference_paper.delete_conference_paper(db, paper_id)
+    await crud_conference_paper.delete_conference_paper(db, paper_id)
     return {"message": "Conference Paper deleted successfully"}
 
 @router.get("/conferences/summary/{faculty_id}", response_model=ConferencePaperSummary)
-def get_conference_papers_summary(
+async def get_conference_papers_summary(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    faculty_id: str,
-    db: Session = Depends(get_db)
+    faculty_id: str = Path(...)
 ):
-    if "admin" not in current_user.roles and current_user.id != faculty_id:
+    if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this faculty's summary")
     
-    total_score = crud_conference_paper.get_conference_papers_total_score(db, faculty_id)
+    total_score = await crud_conference_paper.get_conference_papers_total_score(db, faculty_id)
     return ConferencePaperSummary(total_score=total_score)

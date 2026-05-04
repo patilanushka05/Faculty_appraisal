@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from ...models.Part_A.teaching_process import TeachingProcess
@@ -8,51 +9,53 @@ from ...schema.Part_A.teaching_process import (
     TeachingProcessUpdateHOD,
 )
 
-def get_teaching_process(db: Session, id: str) -> Optional[TeachingProcess]:
-    return db.query(TeachingProcess).filter(TeachingProcess.id == id).first()
+async def get_teaching_process(db: AsyncSession, id: str) -> Optional[TeachingProcess]:
+    result = await db.execute(select(TeachingProcess).where(TeachingProcess.id == id))
+    return result.scalars().first()
 
-def get_teaching_process_by_faculty(db: Session, faculty_id: str) -> List[TeachingProcess]:
-    return db.query(TeachingProcess).filter(TeachingProcess.faculty_id == faculty_id).all()
+async def get_teaching_process_by_faculty(db: AsyncSession, faculty_id: str) -> List[TeachingProcess]:
+    result = await db.execute(select(TeachingProcess).where(TeachingProcess.faculty_id == faculty_id))
+    return result.scalars().all()
 
-def create_teaching_process(db: Session, teaching: TeachingProcessCreate, faculty_id: str) -> TeachingProcess:
+async def create_teaching_process(db: AsyncSession, teaching: TeachingProcessCreate, faculty_id: str) -> TeachingProcess:
     db_teaching = TeachingProcess(**teaching.model_dump(), faculty_id=faculty_id)
     db.add(db_teaching)
-    db.commit()
-    db.refresh(db_teaching)
+    await db.commit()
+    await db.refresh(db_teaching)
     return db_teaching
 
-def update_teaching_process_faculty(
-    db: Session, id: str, teaching_update: TeachingProcessUpdateFaculty
+async def update_teaching_process_faculty(
+    db: AsyncSession, id: str, teaching_update: TeachingProcessUpdateFaculty
 ) -> Optional[TeachingProcess]:
-    db_teaching = get_teaching_process(db, id)
+    db_teaching = await get_teaching_process(db, id)
     if db_teaching:
         update_data = teaching_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_teaching, key, value)
-        db.commit()
-        db.refresh(db_teaching)
+        await db.commit()
+        await db.refresh(db_teaching)
     return db_teaching
 
-def update_teaching_process_hod(
-    db: Session, id: str, teaching_update: TeachingProcessUpdateHOD
+async def update_teaching_process_hod(
+    db: AsyncSession, id: str, teaching_update: TeachingProcessUpdateHOD
 ) -> Optional[TeachingProcess]:
-    db_teaching = get_teaching_process(db, id)
+    db_teaching = await get_teaching_process(db, id)
     if db_teaching:
         update_data = teaching_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_teaching, key, value)
-        db.commit()
-        db.refresh(db_teaching)
+        await db.commit()
+        await db.refresh(db_teaching)
     return db_teaching
 
-def delete_teaching_process(db: Session, id: str) -> bool:
-    db_teaching = get_teaching_process(db, id)
+async def delete_teaching_process(db: AsyncSession, id: str) -> bool:
+    db_teaching = await get_teaching_process(db, id)
     if db_teaching:
-        db.delete(db_teaching)
-        db.commit()
+        await db.delete(db_teaching)
+        await db.commit()
         return True
     return False
 
-def get_teaching_process_total_score(db: Session, faculty_id: str) -> float:
-    entries = get_teaching_process_by_faculty(db, faculty_id)
-    return sum([e.api_score_faculty for e in entries])
+async def get_teaching_process_total_score(db: AsyncSession, faculty_id: str) -> float:
+    entries = await get_teaching_process_by_faculty(db, faculty_id)
+    return sum([e.api_score_faculty or 0.0 for e in entries])

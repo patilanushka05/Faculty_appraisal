@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from ...models.Part_A.student_feedback import StudentFeedback
@@ -9,61 +10,63 @@ from ...schema.Part_A.student_feedback import (
     StudentFeedbackUpdateDirector,
 )
 
-def get_student_feedback(db: Session, id: str) -> Optional[StudentFeedback]:
-    return db.query(StudentFeedback).filter(StudentFeedback.id == id).first()
+async def get_student_feedback(db: AsyncSession, id: str) -> Optional[StudentFeedback]:
+    result = await db.execute(select(StudentFeedback).where(StudentFeedback.id == id))
+    return result.scalars().first()
 
-def get_student_feedback_by_faculty(db: Session, faculty_id: str) -> List[StudentFeedback]:
-    return db.query(StudentFeedback).filter(StudentFeedback.faculty_id == faculty_id).all()
+async def get_student_feedback_by_faculty(db: AsyncSession, faculty_id: str) -> List[StudentFeedback]:
+    result = await db.execute(select(StudentFeedback).where(StudentFeedback.faculty_id == faculty_id))
+    return result.scalars().all()
 
-def create_student_feedback(db: Session, feedback: StudentFeedbackCreate, faculty_id: str) -> StudentFeedback:
+async def create_student_feedback(db: AsyncSession, feedback: StudentFeedbackCreate, faculty_id: str) -> StudentFeedback:
     db_feedback = StudentFeedback(**feedback.model_dump(), faculty_id=faculty_id)
     db.add(db_feedback)
-    db.commit()
-    db.refresh(db_feedback)
+    await db.commit()
+    await db.refresh(db_feedback)
     return db_feedback
 
-def update_student_feedback_faculty(
-    db: Session, id: str, feedback_update: StudentFeedbackUpdateFaculty
+async def update_student_feedback_faculty(
+    db: AsyncSession, id: str, feedback_update: StudentFeedbackUpdateFaculty
 ) -> Optional[StudentFeedback]:
-    db_feedback = get_student_feedback(db, id)
+    db_feedback = await get_student_feedback(db, id)
     if db_feedback:
         update_data = feedback_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_feedback, key, value)
-        db.commit()
-        db.refresh(db_feedback)
+        await db.commit()
+        await db.refresh(db_feedback)
     return db_feedback
 
-def update_student_feedback_hod(
-    db: Session, id: str, feedback_update: StudentFeedbackUpdateHOD
+async def update_student_feedback_hod(
+    db: AsyncSession, id: str, feedback_update: StudentFeedbackUpdateHOD
 ) -> Optional[StudentFeedback]:
-    db_feedback = get_student_feedback(db, id)
+    db_feedback = await get_student_feedback(db, id)
     if db_feedback:
         db_feedback.api_score_hod = feedback_update.api_score_hod
-        db.commit()
-        db.refresh(db_feedback)
+        await db.commit()
+        await db.refresh(db_feedback)
     return db_feedback
 
-def update_student_feedback_director(
-    db: Session, id: str, feedback_update: StudentFeedbackUpdateDirector
+async def update_student_feedback_director(
+    db: AsyncSession, id: str, feedback_update: StudentFeedbackUpdateDirector
 ) -> Optional[StudentFeedback]:
-    db_feedback = get_student_feedback(db, id)
+    db_feedback = await get_student_feedback(db, id)
     if db_feedback:
         db_feedback.api_score_director = feedback_update.api_score_director
-        db.commit()
-        db.refresh(db_feedback)
+        await db.commit()
+        await db.refresh(db_feedback)
     return db_feedback
 
-def delete_student_feedback(db: Session, id: str) -> bool:
-    db_feedback = get_student_feedback(db, id)
+async def delete_student_feedback(db: AsyncSession, id: str) -> bool:
+    db_feedback = await get_student_feedback(db, id)
     if db_feedback:
-        db.delete(db_feedback)
-        db.commit()
+        await db.delete(db_feedback)
+        await db.commit()
         return True
     return False
 
-def get_student_feedback_total_score(db: Session, faculty_id: str) -> float:
-    entries = get_student_feedback_by_faculty(db, faculty_id)
+async def get_student_feedback_total_score(db: AsyncSession, faculty_id: str) -> float:
+    entries = await get_student_feedback_by_faculty(db, faculty_id)
     if not entries:
         return 0.0
     

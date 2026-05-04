@@ -12,19 +12,21 @@ class IndexingEnum(str, enum.Enum):
     UGC = "UGC"
 
 class JournalPublication(Base):
-    __tablename__ = "published_papers"
+    __tablename__ = "journal_publications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    faculty_id = Column(UUID(as_uuid=True), ForeignKey("faculty.id")) 
+    # Note: faculty_id is missing in production journal_publications table
+    faculty_id = Column(UUID(as_uuid=True), ForeignKey("faculty.id"), nullable=True) 
 
-    sr_no = Column(Integer, index=True)
-    title_with_page_nos = Column(Text, name="title")
-    journal_details = Column(Text)
-    issn_isbn = Column(String(50), name="issn_isbn_no")
-    indexing = Column(Enum(IndexingEnum), default=IndexingEnum.SCOPUS)
-    api_score_faculty = Column(Double, default=0.0)
-    api_score_hod = Column(Double, default=0.0)
-    api_score_director = Column(Double, default=0.0)
+    sr_no = Column(Integer, name="row_no")
+    title_with_page_nos = Column(String, name="title")
+    journal_details = Column(String, name="journal")
+    issn_isbn = Column(String, name="issn")
+    indexing = Column(String)
+    api_score_faculty = Column(Double, name="score", default=0.0)
+    api_score_hod = Column(Double, name="hod_score", default=0.0)
+    api_score_director = Column(Double, name="director_score", default=0.0)
+    # department and document also missing in production
     department = Column(String, nullable=True)
     document = Column(String, nullable=True)
 

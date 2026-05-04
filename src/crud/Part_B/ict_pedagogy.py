@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from src.models.Part_B.ict_pedagogy import ICTPedagogy
@@ -9,62 +10,66 @@ from src.schema.Part_B.ict_pedagogy import (
     ICTPedagogyUpdateDirector,
 )
 
-def get_ict_pedagogy(db: Session, pedagogy_id: str) -> Optional[ICTPedagogy]:
-    return db.query(ICTPedagogy).filter(ICTPedagogy.id == pedagogy_id).first()
+async def get_ict_pedagogy(db: AsyncSession, pedagogy_id: str) -> Optional[ICTPedagogy]:
+    result = await db.execute(select(ICTPedagogy).where(ICTPedagogy.id == pedagogy_id))
+    return result.scalars().first()
 
-def get_ict_pedagogies_by_faculty(db: Session, faculty_id: str, skip: int = 0, limit: int = 100) -> List[ICTPedagogy]:
-    return db.query(ICTPedagogy).filter(ICTPedagogy.faculty_id == faculty_id).offset(skip).limit(limit).all()
+async def get_ict_pedagogies_by_faculty(db: AsyncSession, faculty_id: str, skip: int = 0, limit: int = 100) -> List[ICTPedagogy]:
+    result = await db.execute(select(ICTPedagogy).where(ICTPedagogy.faculty_id == faculty_id).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def get_all_ict_pedagogies(db: Session, skip: int = 0, limit: int = 100) -> List[ICTPedagogy]:
-    return db.query(ICTPedagogy).offset(skip).limit(limit).all()
+async def get_all_ict_pedagogies(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[ICTPedagogy]:
+    result = await db.execute(select(ICTPedagogy).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def create_ict_pedagogy(db: Session, pedagogy: ICTPedagogyCreate, faculty_id: str) -> ICTPedagogy:
+async def create_ict_pedagogy(db: AsyncSession, pedagogy: ICTPedagogyCreate, faculty_id: str) -> ICTPedagogy:
     db_pedagogy = ICTPedagogy(**pedagogy.model_dump(), faculty_id=faculty_id)
     db.add(db_pedagogy)
-    db.commit()
-    db.refresh(db_pedagogy)
+    await db.commit()
+    await db.refresh(db_pedagogy)
     return db_pedagogy
 
-def update_ict_pedagogy_faculty(
-    db: Session, pedagogy_id: str, pedagogy_update: ICTPedagogyUpdateFaculty
+async def update_ict_pedagogy_faculty(
+    db: AsyncSession, pedagogy_id: str, pedagogy_update: ICTPedagogyUpdateFaculty
 ) -> Optional[ICTPedagogy]:
-    db_pedagogy = db.query(ICTPedagogy).filter(ICTPedagogy.id == pedagogy_id).first()
+    db_pedagogy = await get_ict_pedagogy(db, pedagogy_id)
     if db_pedagogy:
         update_data = pedagogy_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_pedagogy, key, value)
-        db.commit()
-        db.refresh(db_pedagogy)
+        await db.commit()
+        await db.refresh(db_pedagogy)
     return db_pedagogy
 
-def update_ict_pedagogy_hod(
-    db: Session, pedagogy_id: str, pedagogy_update: ICTPedagogyUpdateHOD
+async def update_ict_pedagogy_hod(
+    db: AsyncSession, pedagogy_id: str, pedagogy_update: ICTPedagogyUpdateHOD
 ) -> Optional[ICTPedagogy]:
-    db_pedagogy = db.query(ICTPedagogy).filter(ICTPedagogy.id == pedagogy_id).first()
+    db_pedagogy = await get_ict_pedagogy(db, pedagogy_id)
     if db_pedagogy:
         db_pedagogy.api_score_hod = pedagogy_update.api_score_hod
-        db.commit()
-        db.refresh(db_pedagogy)
+        await db.commit()
+        await db.refresh(db_pedagogy)
     return db_pedagogy
 
-def update_ict_pedagogy_director(
-    db: Session, pedagogy_id: str, pedagogy_update: ICTPedagogyUpdateDirector
+async def update_ict_pedagogy_director(
+    db: AsyncSession, pedagogy_id: str, pedagogy_update: ICTPedagogyUpdateDirector
 ) -> Optional[ICTPedagogy]:
-    db_pedagogy = db.query(ICTPedagogy).filter(ICTPedagogy.id == pedagogy_id).first()
+    db_pedagogy = await get_ict_pedagogy(db, pedagogy_id)
     if db_pedagogy:
         db_pedagogy.api_score_director = pedagogy_update.api_score_director
-        db.commit()
-        db.refresh(db_pedagogy)
+        await db.commit()
+        await db.refresh(db_pedagogy)
     return db_pedagogy
 
-def delete_ict_pedagogy(db: Session, pedagogy_id: str) -> Optional[ICTPedagogy]:
-    db_pedagogy = db.query(ICTPedagogy).filter(ICTPedagogy.id == pedagogy_id).first()
+async def delete_ict_pedagogy(db: AsyncSession, pedagogy_id: str) -> Optional[ICTPedagogy]:
+    db_pedagogy = await get_ict_pedagogy(db, pedagogy_id)
     if db_pedagogy:
-        db.delete(db_pedagogy)
-        db.commit()
+        await db.delete(db_pedagogy)
+        await db.commit()
     return db_pedagogy
 
-def get_ict_pedagogies_total_score(db: Session, faculty_id: str) -> float:
-    pedagogies = db.query(ICTPedagogy).filter(ICTPedagogy.faculty_id == faculty_id).all()
-    total_score = sum([p.api_score_faculty for p in pedagogies])
+async def get_ict_pedagogies_total_score(db: AsyncSession, faculty_id: str) -> float:
+    result = await db.execute(select(ICTPedagogy).where(ICTPedagogy.faculty_id == faculty_id))
+    pedagogies = result.scalars().all()
+    total_score = sum([p.api_score_faculty or 0.0 for p in pedagogies])
     return total_score

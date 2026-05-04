@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
-from sqlalchemy.orm import Session
-from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional, Annotated
 from datetime import date
 
 from ....setup.dependencies import get_db, CurrentUser
@@ -20,15 +20,15 @@ router = APIRouter()
 
 @router.post("/ipr", response_model=IPRResponse, status_code=status.HTTP_201_CREATED)
 async def create_ipr(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    title: str = Form(...),
-    scope: str = Form(...),
-    filing_date: date = Form(...),
-    status: str = Form(...),
-    patent_file_no: str = Form(...),
-    department: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    title: Annotated[str, Form()] = ...,
+    scope: Annotated[str, Form()] = ...,
+    filing_date: Annotated[date, Form()] = ...,
+    status: Annotated[str, Form()] = ...,
+    patent_file_no: Annotated[str, Form()] = ...,
+    department: Annotated[Optional[str], Form()] = None,
+    file: Optional[UploadFile] = File(None)
 ):
     if "faculty" not in current_user.roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to create IPR entries")
@@ -47,59 +47,58 @@ async def create_ipr(
         document=document_path
     )
     
-    return crud_ipr.create_ipr(db=db, ipr=ipr, faculty_id=current_user.id)
+    return await crud_ipr.create_ipr(db=db, ipr=ipr, faculty_id=current_user.id)
 
 @router.get("/ipr/faculty/{faculty_id}", response_model=List[IPRResponse])
-def read_ipr_by_faculty(
+async def read_ipr_by_faculty(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    faculty_id: str,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
+    faculty_id: str = Path(...),
+    skip: int = Query(0),
+    limit: int = Query(100)
 ):
-    if "admin" not in current_user.roles and current_user.id != faculty_id:
+    if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this faculty's IPR entries")
     
-    ipr_entries = crud_ipr.get_ipr_by_faculty(db, faculty_id=faculty_id, skip=skip, limit=limit)
+    ipr_entries = await crud_ipr.get_ipr_by_faculty(db, faculty_id=faculty_id, skip=skip, limit=limit)
     return ipr_entries
 
 @router.get("/ipr", response_model=List[IPRResponse])
-def read_all_ipr(
+async def read_all_ipr(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
+    skip: int = Query(0),
+    limit: int = Query(100)
 ):
-    if "admin" not in current_user.roles:
+    if not any(role in ["admin", "dean", "vc"] for role in current_user.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view all IPR entries")
     
-    ipr_entries = crud_ipr.get_all_ipr(db, skip=skip, limit=limit)
+    ipr_entries = await crud_ipr.get_all_ipr(db, skip=skip, limit=limit)
     return ipr_entries
 
 @router.put("/ipr/{ipr_id}", response_model=IPRResponse)
-def update_ipr(
+async def update_ipr(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    ipr_id: str,
-    ipr_update: IPRUpdateFaculty, # Default to faculty update schema
-    db: Session = Depends(get_db)
+    ipr_id: str = Path(...),
+    ipr_update: IPRUpdateFaculty = None
 ):
-    db_ipr = crud_ipr.get_ipr(db, ipr_id)
+    db_ipr = await crud_ipr.get_ipr(db, ipr_id)
     if db_ipr is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="IPR entry not found")
 
+    if not current_user.has_authority_over(db_ipr.faculty_id, "faculty", getattr(db_ipr, "department", None)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this IPR entry")
+
     # Role-based update logic
     if "admin" in current_user.roles:
-        updated_ipr = crud_ipr.update_ipr_faculty(db, ipr_id, ipr_update)
+        updated_ipr = await crud_ipr.update_ipr_faculty(db, ipr_id, ipr_update)
     elif "hod" in current_user.roles:
-        if not isinstance(ipr_update, IPRUpdateHOD):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="HOD can only update research_score_hod")
-        updated_ipr = crud_ipr.update_ipr_hod(db, ipr_id, ipr_update)
+        updated_ipr = await crud_ipr.update_ipr_hod(db, ipr_id, ipr_update)
     elif "director" in current_user.roles:
-        if not isinstance(ipr_update, IPRUpdateDirector):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Director can only update research_score_director")
-        updated_ipr = crud_ipr.update_ipr_director(db, ipr_id, ipr_update)
+        updated_ipr = await crud_ipr.update_ipr_director(db, ipr_id, ipr_update)
     elif "faculty" in current_user.roles and db_ipr.faculty_id == current_user.id:
-        updated_ipr = crud_ipr.update_ipr_faculty(db, ipr_id, ipr_update)
+        updated_ipr = await crud_ipr.update_ipr_faculty(db, ipr_id, ipr_update)
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this IPR entry")
 
@@ -108,29 +107,29 @@ def update_ipr(
     return updated_ipr
 
 @router.delete("/ipr/{ipr_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_ipr(
+async def delete_ipr(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    ipr_id: str,
-    db: Session = Depends(get_db)
+    ipr_id: str = Path(...)
 ):
-    db_ipr = crud_ipr.get_ipr(db, ipr_id)
+    db_ipr = await crud_ipr.get_ipr(db, ipr_id)
     if db_ipr is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="IPR entry not found")
 
-    if "admin" not in current_user.roles and db_ipr.faculty_id != current_user.id:
+    if not current_user.has_authority_over(db_ipr.faculty_id, "faculty", getattr(db_ipr, "department", None)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this IPR entry")
     
-    crud_ipr.delete_ipr(db, ipr_id)
+    await crud_ipr.delete_ipr(db, ipr_id)
     return {"message": "IPR entry deleted successfully"}
 
 @router.get("/ipr/summary/{faculty_id}", response_model=IPRSummary)
-def get_ipr_summary(
+async def get_ipr_summary(
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
-    faculty_id: str,
-    db: Session = Depends(get_db)
+    faculty_id: str = Path(...)
 ):
-    if "admin" not in current_user.roles and current_user.id != faculty_id:
+    if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this faculty's summary")
     
-    total_score = crud_ipr.get_ipr_total_score(db, faculty_id)
+    total_score = await crud_ipr.get_ipr_total_score(db, faculty_id)
     return IPRSummary(total_score=total_score)

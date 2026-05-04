@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+import time
 from src.setup.database import engine, Base
 from src.setup.dependencies import CurrentUser
 
@@ -40,19 +41,6 @@ from src.api.Part_A.v1 import (
 )
 from src.api.overall.v1 import appraisal_summary, remarks, finalization, dashboard, faculty
 
-# Create tables
-# Base.metadata.create_all(bind=engine)
-
-origins = [
-    "http://localhost:8080",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "http://localhost:5500",
-    "http://localhost:4200",
-    "*",
-]
-
 app = FastAPI(
     title="Faculty Appraisal API",
     description="API for managing faculty appraisal data.",
@@ -62,6 +50,15 @@ app = FastAPI(
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    logger.info(f"Request: {request.method} {request.url.path} processed in {process_time:.4f}s")
+    return response
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
@@ -84,6 +81,16 @@ async def global_exception_handler(request: Request, exc: Exception):
             "error": str(exc)
         },
     )
+
+origins = [
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://localhost:5500",
+    "http://localhost:4200",
+    "*",
+]
 
 app.add_middleware(
     CORSMiddleware,

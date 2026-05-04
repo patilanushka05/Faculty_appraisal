@@ -22,6 +22,7 @@ RUN uv pip install --no-cache -r pyproject.toml
 # 6. Copy the rest of your app code
 COPY . .
 
-# 7. Use the PORT environment variable provided by Cloud Run
-# Ensure "main:app" matches your filename and FastAPI instance
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# 7. Use Gunicorn with Uvicorn workers for production-grade performance
+# Parameterize workers (default to 4, but Cloud Run may override this)
+# Bind to the PORT environment variable provided by Cloud Run
+CMD ["sh", "-c", "gunicorn -w ${WORKERS:-4} -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:${PORT:-8080} --timeout 0"]

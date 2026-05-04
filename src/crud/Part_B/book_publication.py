@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from src.models.Part_B.book_publication import BookPublication
@@ -9,62 +10,65 @@ from src.schema.Part_B.book_publication import (
     BookPublicationUpdateDirector,
 )
 
-def get_book_publication(db: Session, publication_id: str) -> Optional[BookPublication]:
-    return db.query(BookPublication).filter(BookPublication.id == publication_id).first()
+async def get_book_publication(db: AsyncSession, publication_id: str) -> Optional[BookPublication]:
+    result = await db.execute(select(BookPublication).where(BookPublication.id == publication_id))
+    return result.scalars().first()
 
-def get_book_publications_by_faculty(db: Session, faculty_id: str, skip: int = 0, limit: int = 100) -> List[BookPublication]:
-    return db.query(BookPublication).filter(BookPublication.faculty_id == faculty_id).offset(skip).limit(limit).all()
+async def get_book_publications_by_faculty(db: AsyncSession, faculty_id: str, skip: int = 0, limit: int = 100) -> List[BookPublication]:
+    result = await db.execute(select(BookPublication).where(BookPublication.faculty_id == faculty_id).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def get_all_book_publications(db: Session, skip: int = 0, limit: int = 100) -> List[BookPublication]:
-    return db.query(BookPublication).offset(skip).limit(limit).all()
+async def get_all_book_publications(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[BookPublication]:
+    result = await db.execute(select(BookPublication).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def create_book_publication(db: Session, publication: BookPublicationCreate, faculty_id: str) -> BookPublication:
+async def create_book_publication(db: AsyncSession, publication: BookPublicationCreate, faculty_id: str) -> BookPublication:
     db_publication = BookPublication(**publication.model_dump(), faculty_id=faculty_id)
     db.add(db_publication)
-    db.commit()
-    db.refresh(db_publication)
+    await db.commit()
+    await db.refresh(db_publication)
     return db_publication
 
-def update_book_publication_faculty(
-    db: Session, publication_id: str, publication_update: BookPublicationUpdateFaculty
+async def update_book_publication_faculty(
+    db: AsyncSession, publication_id: str, publication_update: BookPublicationUpdateFaculty
 ) -> Optional[BookPublication]:
-    db_publication = db.query(BookPublication).filter(BookPublication.id == publication_id).first()
+    db_publication = await get_book_publication(db, publication_id)
     if db_publication:
         update_data = publication_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_publication, key, value)
-        db.commit()
-        db.refresh(db_publication)
+        await db.commit()
+        await db.refresh(db_publication)
     return db_publication
 
-def update_book_publication_hod(
-    db: Session, publication_id: str, publication_update: BookPublicationUpdateHOD
+async def update_book_publication_hod(
+    db: AsyncSession, publication_id: str, publication_update: BookPublicationUpdateHOD
 ) -> Optional[BookPublication]:
-    db_publication = db.query(BookPublication).filter(BookPublication.id == publication_id).first()
+    db_publication = await get_book_publication(db, publication_id)
     if db_publication:
         db_publication.api_score_hod = publication_update.api_score_hod
-        db.commit()
-        db.refresh(db_publication)
+        await db.commit()
+        await db.refresh(db_publication)
     return db_publication
 
-def update_book_publication_director(
-    db: Session, publication_id: str, publication_update: BookPublicationUpdateDirector
+async def update_book_publication_director(
+    db: AsyncSession, publication_id: str, publication_update: BookPublicationUpdateDirector
 ) -> Optional[BookPublication]:
-    db_publication = db.query(BookPublication).filter(BookPublication.id == publication_id).first()
+    db_publication = await get_book_publication(db, publication_id)
     if db_publication:
         db_publication.api_score_director = publication_update.api_score_director
-        db.commit()
-        db.refresh(db_publication)
+        await db.commit()
+        await db.refresh(db_publication)
     return db_publication
 
-def delete_book_publication(db: Session, publication_id: str) -> Optional[BookPublication]:
-    db_publication = db.query(BookPublication).filter(BookPublication.id == publication_id).first()
+async def delete_book_publication(db: AsyncSession, publication_id: str) -> Optional[BookPublication]:
+    db_publication = await get_book_publication(db, publication_id)
     if db_publication:
-        db.delete(db_publication)
-        db.commit()
+        await db.delete(db_publication)
+        await db.commit()
     return db_publication
 
-def get_book_publications_total_score(db: Session, faculty_id: str) -> float:
-    publications = db.query(BookPublication).filter(BookPublication.faculty_id == faculty_id).all()
-    total_score = sum([pub.api_score_faculty for pub in publications]) # Assuming faculty score contributes to total
+async def get_book_publications_total_score(db: AsyncSession, faculty_id: str) -> float:
+    publications = await get_book_publications_by_faculty(db, faculty_id, limit=1000)
+    total_score = sum([pub.api_score_faculty or 0.0 for pub in publications]) 
     return total_score

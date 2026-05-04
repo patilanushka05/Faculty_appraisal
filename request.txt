@@ -1,0 +1,37 @@
+Task: Optimize the FastAPI backend for high performance, low latency, and efficient scaling on Google Cloud Run.
+
+Context: The application is an asynchronous FastAPI service. We need to move beyond standard defaults to production-grade performance.
+
+Instructions:
+
+Serialization & Validation:
+
+Update requirements.txt (or pyproject.toml) to include orjson and ensure pydantic>=2.0.
+
+Refactor all high-traffic routes to use ORJSONResponse as the default response class.
+
+Audit Pydantic models to ensure they leverage V2 features for faster validation.
+
+Database & I/O:
+
+Review current database connections. If using PostgreSQL, ensure we are using asyncpg and implementing a connection pool (e.g., via SQLAlchemy AsyncEngine or Tortoise-ORM).
+
+Identify any synchronous I/O calls (like requests or open()) and replace them with httpx or aiofiles.
+
+Process Management (Deployment Prep):
+
+Modify the Dockerfile or entrypoint script. Instead of running uvicorn directly, configure it to run via gunicorn using the uvicorn.workers.UvicornWorker class.
+
+Parameterize the number of workers using an environment variable, defaulting to a formula of (2 * CPU_CORES) + 1 for local testing, but note that Cloud Run may require a single-process configuration with high concurrency (check CMD structure).
+
+Middleware Audit:
+
+Check main.py for unnecessary middleware.
+
+Ensure GZipMiddleware is implemented only if response sizes frequently exceed 1KB, otherwise, remove it to save CPU cycles.
+
+Performance Profiling:
+
+Add a temporary utility or endpoint using py-spy or slowapi to help identify any remaining bottlenecks in the request-response cycle.
+
+Please provide a diff of the changes and explain the expected performance gain for each modification.

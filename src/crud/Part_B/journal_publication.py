@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from src.models.Part_B.journal_publication import JournalPublication
@@ -9,62 +10,65 @@ from src.schema.Part_B.journal_publication import (
     JournalPublicationUpdateDirector,
 )
 
-def get_journal_publication(db: Session, publication_id: str) -> Optional[JournalPublication]:
-    return db.query(JournalPublication).filter(JournalPublication.id == publication_id).first()
+async def get_journal_publication(db: AsyncSession, publication_id: str) -> Optional[JournalPublication]:
+    result = await db.execute(select(JournalPublication).where(JournalPublication.id == publication_id))
+    return result.scalars().first()
 
-def get_journal_publications_by_faculty(db: Session, faculty_id: str, skip: int = 0, limit: int = 100) -> List[JournalPublication]:
-    return db.query(JournalPublication).filter(JournalPublication.faculty_id == faculty_id).offset(skip).limit(limit).all()
+async def get_journal_publications_by_faculty(db: AsyncSession, faculty_id: str, skip: int = 0, limit: int = 100) -> List[JournalPublication]:
+    result = await db.execute(select(JournalPublication).where(JournalPublication.faculty_id == faculty_id).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def get_all_journal_publications(db: Session, skip: int = 0, limit: int = 100) -> List[JournalPublication]:
-    return db.query(JournalPublication).offset(skip).limit(limit).all()
+async def get_all_journal_publications(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[JournalPublication]:
+    result = await db.execute(select(JournalPublication).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def create_journal_publication(db: Session, publication: JournalPublicationCreate, faculty_id: str) -> JournalPublication:
+async def create_journal_publication(db: AsyncSession, publication: JournalPublicationCreate, faculty_id: str) -> JournalPublication:
     db_publication = JournalPublication(**publication.model_dump(), faculty_id=faculty_id)
     db.add(db_publication)
-    db.commit()
-    db.refresh(db_publication)
+    await db.commit()
+    await db.refresh(db_publication)
     return db_publication
 
-def update_journal_publication_faculty(
-    db: Session, publication_id: str, publication_update: JournalPublicationUpdateFaculty
+async def update_journal_publication_faculty(
+    db: AsyncSession, publication_id: str, publication_update: JournalPublicationUpdateFaculty
 ) -> Optional[JournalPublication]:
-    db_publication = db.query(JournalPublication).filter(JournalPublication.id == publication_id).first()
+    db_publication = await get_journal_publication(db, publication_id)
     if db_publication:
         update_data = publication_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_publication, key, value)
-        db.commit()
-        db.refresh(db_publication)
+        await db.commit()
+        await db.refresh(db_publication)
     return db_publication
 
-def update_journal_publication_hod(
-    db: Session, publication_id: str, publication_update: JournalPublicationUpdateHOD
+async def update_journal_publication_hod(
+    db: AsyncSession, publication_id: str, publication_update: JournalPublicationUpdateHOD
 ) -> Optional[JournalPublication]:
-    db_publication = db.query(JournalPublication).filter(JournalPublication.id == publication_id).first()
+    db_publication = await get_journal_publication(db, publication_id)
     if db_publication:
         db_publication.api_score_hod = publication_update.api_score_hod
-        db.commit()
-        db.refresh(db_publication)
+        await db.commit()
+        await db.refresh(db_publication)
     return db_publication
 
-def update_journal_publication_director(
-    db: Session, publication_id: str, publication_update: JournalPublicationUpdateDirector
+async def update_journal_publication_director(
+    db: AsyncSession, publication_id: str, publication_update: JournalPublicationUpdateDirector
 ) -> Optional[JournalPublication]:
-    db_publication = db.query(JournalPublication).filter(JournalPublication.id == publication_id).first()
+    db_publication = await get_journal_publication(db, publication_id)
     if db_publication:
         db_publication.api_score_director = publication_update.api_score_director
-        db.commit()
-        db.refresh(db_publication)
+        await db.commit()
+        await db.refresh(db_publication)
     return db_publication
 
-def delete_journal_publication(db: Session, publication_id: str) -> Optional[JournalPublication]:
-    db_publication = db.query(JournalPublication).filter(JournalPublication.id == publication_id).first()
+async def delete_journal_publication(db: AsyncSession, publication_id: str) -> Optional[JournalPublication]:
+    db_publication = await get_journal_publication(db, publication_id)
     if db_publication:
-        db.delete(db_publication)
-        db.commit()
+        await db.delete(db_publication)
+        await db.commit()
     return db_publication
 
-def get_journal_publications_total_score(db: Session, faculty_id: str) -> float:
-    publications = db.query(JournalPublication).filter(JournalPublication.faculty_id == faculty_id).all()
-    total_score = sum([pub.api_score_faculty for pub in publications]) # Assuming faculty score contributes to total
+async def get_journal_publications_total_score(db: AsyncSession, faculty_id: str) -> float:
+    publications = await get_journal_publications_by_faculty(db, faculty_id, limit=1000)
+    total_score = sum([pub.api_score_faculty or 0.0 for pub in publications]) 
     return total_score

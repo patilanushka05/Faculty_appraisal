@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from src.models.Part_B.research_award import ResearchAward
@@ -9,62 +10,66 @@ from src.schema.Part_B.research_award import (
     ResearchAwardUpdateDirector,
 )
 
-def get_research_award(db: Session, award_id: str) -> Optional[ResearchAward]:
-    return db.query(ResearchAward).filter(ResearchAward.id == award_id).first()
+async def get_research_award(db: AsyncSession, award_id: str) -> Optional[ResearchAward]:
+    result = await db.execute(select(ResearchAward).where(ResearchAward.id == award_id))
+    return result.scalars().first()
 
-def get_research_awards_by_faculty(db: Session, faculty_id: str, skip: int = 0, limit: int = 100) -> List[ResearchAward]:
-    return db.query(ResearchAward).filter(ResearchAward.faculty_id == faculty_id).offset(skip).limit(limit).all()
+async def get_research_awards_by_faculty(db: AsyncSession, faculty_id: str, skip: int = 0, limit: int = 100) -> List[ResearchAward]:
+    result = await db.execute(select(ResearchAward).where(ResearchAward.faculty_id == faculty_id).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def get_all_research_awards(db: Session, skip: int = 0, limit: int = 100) -> List[ResearchAward]:
-    return db.query(ResearchAward).offset(skip).limit(limit).all()
+async def get_all_research_awards(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[ResearchAward]:
+    result = await db.execute(select(ResearchAward).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def create_research_award(db: Session, award: ResearchAwardCreate, faculty_id: str) -> ResearchAward:
+async def create_research_award(db: AsyncSession, award: ResearchAwardCreate, faculty_id: str) -> ResearchAward:
     db_award = ResearchAward(**award.model_dump(), faculty_id=faculty_id)
     db.add(db_award)
-    db.commit()
-    db.refresh(db_award)
+    await db.commit()
+    await db.refresh(db_award)
     return db_award
 
-def update_research_award_faculty(
-    db: Session, award_id: str, award_update: ResearchAwardUpdateFaculty
+async def update_research_award_faculty(
+    db: AsyncSession, award_id: str, award_update: ResearchAwardUpdateFaculty
 ) -> Optional[ResearchAward]:
-    db_award = db.query(ResearchAward).filter(ResearchAward.id == award_id).first()
+    db_award = await get_research_award(db, award_id)
     if db_award:
         update_data = award_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_award, key, value)
-        db.commit()
-        db.refresh(db_award)
+        await db.commit()
+        await db.refresh(db_award)
     return db_award
 
-def update_research_award_hod(
-    db: Session, award_id: str, award_update: ResearchAwardUpdateHOD
+async def update_research_award_hod(
+    db: AsyncSession, award_id: str, award_update: ResearchAwardUpdateHOD
 ) -> Optional[ResearchAward]:
-    db_award = db.query(ResearchAward).filter(ResearchAward.id == award_id).first()
+    db_award = await get_research_award(db, award_id)
     if db_award:
         db_award.research_score_hod = award_update.research_score_hod
-        db.commit()
-        db.refresh(db_award)
+        await db.commit()
+        await db.refresh(db_award)
     return db_award
 
-def update_research_award_director(
-    db: Session, award_id: str, award_update: ResearchAwardUpdateDirector
+async def update_research_award_director(
+    db: AsyncSession, award_id: str, award_update: ResearchAwardUpdateDirector
 ) -> Optional[ResearchAward]:
-    db_award = db.query(ResearchAward).filter(ResearchAward.id == award_id).first()
+    db_award = await get_research_award(db, award_id)
     if db_award:
         db_award.research_score_director = award_update.research_score_director
-        db.commit()
-        db.refresh(db_award)
+        await db.commit()
+        await db.refresh(db_award)
     return db_award
 
-def delete_research_award(db: Session, award_id: str) -> Optional[ResearchAward]:
-    db_award = db.query(ResearchAward).filter(ResearchAward.id == award_id).first()
+async def delete_research_award(db: AsyncSession, award_id: str) -> Optional[ResearchAward]:
+    db_award = await get_research_award(db, award_id)
     if db_award:
-        db.delete(db_award)
-        db.commit()
+        await db.delete(db_award)
+        await db.commit()
     return db_award
 
-def get_research_awards_total_score(db: Session, faculty_id: str) -> float:
-    awards = db.query(ResearchAward).filter(ResearchAward.faculty_id == faculty_id).all()
-    total_score = sum([award.research_score_faculty for award in awards])
+async def get_research_awards_total_score(db: AsyncSession, faculty_id: str) -> float:
+    result = await db.execute(select(ResearchAward).where(ResearchAward.faculty_id == faculty_id))
+    awards = result.scalars().all()
+    total_score = sum([award.research_score_faculty or 0.0 for award in awards])
     return total_score

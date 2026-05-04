@@ -1,11 +1,12 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
 from typing import List, Optional
 from ...models.Part_B.faculty import Faculty
 from ...models.overall.school import School
 from ...models.overall.appraisal_summary import AppraisalSummary, AppraisalStatus
 
-def get_subordinates_status(
-    db: Session, 
+async def get_subordinates_status(
+    db: AsyncSession, 
     role: str, 
     school_id: Optional[str] = None, 
     department: Optional[str] = None, 
@@ -14,7 +15,7 @@ def get_subordinates_status(
     """
     Fetches all subordinates based on the current user's hierarchy and their form status.
     """
-    query = db.query(Faculty, AppraisalSummary).outerjoin(
+    query = select(Faculty, AppraisalSummary).outerjoin(
         AppraisalSummary, Faculty.id == AppraisalSummary.faculty_id
     ).join(School, Faculty.school_id == School.id)
     
@@ -33,7 +34,8 @@ def get_subordinates_status(
     else:
         return []
 
-    results = query.all()
+    result = await db.execute(query)
+    results = result.all()
     
     subordinates = []
     for faculty, summary in results:
@@ -50,17 +52,18 @@ def get_subordinates_status(
         
     return subordinates
 
-def create_or_update_summary_status(
-    db: Session, 
+async def create_or_update_summary_status(
+    db: AsyncSession, 
     faculty_id: str, 
     status: AppraisalStatus, 
     academic_year: str,
     overall_score: float = 0.0
 ) -> AppraisalSummary:
-    db_summary = db.query(AppraisalSummary).filter(
+    result = await db.execute(select(AppraisalSummary).filter(
         AppraisalSummary.faculty_id == faculty_id,
         AppraisalSummary.academic_year == academic_year
-    ).first()
+    ))
+    db_summary = result.scalars().first()
     
     if db_summary:
         db_summary.status = status
@@ -74,6 +77,6 @@ def create_or_update_summary_status(
         )
         db.add(db_summary)
     
-    db.commit()
-    db.refresh(db_summary)
+    await db.commit()
+    await db.refresh(db_summary)
     return db_summary

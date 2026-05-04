@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from src.models.Part_B.research_proposal import ResearchProposal
@@ -9,62 +10,65 @@ from src.schema.Part_B.research_proposal import (
     ResearchProposalUpdateDirector,
 )
 
-def get_research_proposal(db: Session, proposal_id: str) -> Optional[ResearchProposal]:
-    return db.query(ResearchProposal).filter(ResearchProposal.id == proposal_id).first()
+async def get_research_proposal(db: AsyncSession, proposal_id: str) -> Optional[ResearchProposal]:
+    result = await db.execute(select(ResearchProposal).where(ResearchProposal.id == proposal_id))
+    return result.scalars().first()
 
-def get_research_proposals_by_faculty(db: Session, faculty_id: str, skip: int = 0, limit: int = 100) -> List[ResearchProposal]:
-    return db.query(ResearchProposal).filter(ResearchProposal.faculty_id == faculty_id).offset(skip).limit(limit).all()
+async def get_research_proposals_by_faculty(db: AsyncSession, faculty_id: str, skip: int = 0, limit: int = 100) -> List[ResearchProposal]:
+    result = await db.execute(select(ResearchProposal).where(ResearchProposal.faculty_id == faculty_id).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def get_all_research_proposals(db: Session, skip: int = 0, limit: int = 100) -> List[ResearchProposal]:
-    return db.query(ResearchProposal).offset(skip).limit(limit).all()
+async def get_all_research_proposals(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[ResearchProposal]:
+    result = await db.execute(select(ResearchProposal).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def create_research_proposal(db: Session, proposal: ResearchProposalCreate, faculty_id: str) -> ResearchProposal:
+async def create_research_proposal(db: AsyncSession, proposal: ResearchProposalCreate, faculty_id: str) -> ResearchProposal:
     db_proposal = ResearchProposal(**proposal.model_dump(), faculty_id=faculty_id)
     db.add(db_proposal)
-    db.commit()
-    db.refresh(db_proposal)
+    await db.commit()
+    await db.refresh(db_proposal)
     return db_proposal
 
-def update_research_proposal_faculty(
-    db: Session, proposal_id: str, proposal_update: ResearchProposalUpdateFaculty
+async def update_research_proposal_faculty(
+    db: AsyncSession, proposal_id: str, proposal_update: ResearchProposalUpdateFaculty
 ) -> Optional[ResearchProposal]:
-    db_proposal = db.query(ResearchProposal).filter(ResearchProposal.id == proposal_id).first()
+    db_proposal = await get_research_proposal(db, proposal_id)
     if db_proposal:
         update_data = proposal_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_proposal, key, value)
-        db.commit()
-        db.refresh(db_proposal)
+        await db.commit()
+        await db.refresh(db_proposal)
     return db_proposal
 
-def update_research_proposal_hod(
-    db: Session, proposal_id: str, proposal_update: ResearchProposalUpdateHOD
+async def update_research_proposal_hod(
+    db: AsyncSession, proposal_id: str, proposal_update: ResearchProposalUpdateHOD
 ) -> Optional[ResearchProposal]:
-    db_proposal = db.query(ResearchProposal).filter(ResearchProposal.id == proposal_id).first()
+    db_proposal = await get_research_proposal(db, proposal_id)
     if db_proposal:
         db_proposal.api_score_hod = proposal_update.api_score_hod
-        db.commit()
-        db.refresh(db_proposal)
+        await db.commit()
+        await db.refresh(db_proposal)
     return db_proposal
 
-def update_research_proposal_director(
-    db: Session, proposal_id: str, proposal_update: ResearchProposalUpdateDirector
+async def update_research_proposal_director(
+    db: AsyncSession, proposal_id: str, proposal_update: ResearchProposalUpdateDirector
 ) -> Optional[ResearchProposal]:
-    db_proposal = db.query(ResearchProposal).filter(ResearchProposal.id == proposal_id).first()
+    db_proposal = await get_research_proposal(db, proposal_id)
     if db_proposal:
         db_proposal.api_score_director = proposal_update.api_score_director
-        db.commit()
-        db.refresh(db_proposal)
+        await db.commit()
+        await db.refresh(db_proposal)
     return db_proposal
 
-def delete_research_proposal(db: Session, proposal_id: str) -> Optional[ResearchProposal]:
-    db_proposal = db.query(ResearchProposal).filter(ResearchProposal.id == proposal_id).first()
+async def delete_research_proposal(db: AsyncSession, proposal_id: str) -> Optional[ResearchProposal]:
+    db_proposal = await get_research_proposal(db, proposal_id)
     if db_proposal:
-        db.delete(db_proposal)
-        db.commit()
+        await db.delete(db_proposal)
+        await db.commit()
     return db_proposal
 
-def get_research_proposals_total_score(db: Session, faculty_id: str) -> float:
-    proposals = db.query(ResearchProposal).filter(ResearchProposal.faculty_id == faculty_id).all()
-    total_score = sum([p.api_score_faculty for p in proposals])
+async def get_research_proposals_total_score(db: AsyncSession, faculty_id: str) -> float:
+    proposals = await get_research_proposals_by_faculty(db, faculty_id, limit=1000)
+    total_score = sum([p.api_score_faculty or 0.0 for p in proposals])
     return total_score

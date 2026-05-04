@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 from typing import List, Optional
 
 from src.models.Part_B.ipr import IPR
@@ -9,62 +10,66 @@ from src.schema.Part_B.ipr import (
     IPRUpdateDirector,
 )
 
-def get_ipr(db: Session, ipr_id: str) -> Optional[IPR]:
-    return db.query(IPR).filter(IPR.id == ipr_id).first()
+async def get_ipr(db: AsyncSession, ipr_id: str) -> Optional[IPR]:
+    result = await db.execute(select(IPR).where(IPR.id == ipr_id))
+    return result.scalars().first()
 
-def get_ipr_by_faculty(db: Session, faculty_id: str, skip: int = 0, limit: int = 100) -> List[IPR]:
-    return db.query(IPR).filter(IPR.faculty_id == faculty_id).offset(skip).limit(limit).all()
+async def get_ipr_by_faculty(db: AsyncSession, faculty_id: str, skip: int = 0, limit: int = 100) -> List[IPR]:
+    result = await db.execute(select(IPR).where(IPR.faculty_id == faculty_id).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def get_all_ipr(db: Session, skip: int = 0, limit: int = 100) -> List[IPR]:
-    return db.query(IPR).offset(skip).limit(limit).all()
+async def get_all_ipr(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[IPR]:
+    result = await db.execute(select(IPR).offset(skip).limit(limit))
+    return result.scalars().all()
 
-def create_ipr(db: Session, ipr: IPRCreate, faculty_id: str) -> IPR:
+async def create_ipr(db: AsyncSession, ipr: IPRCreate, faculty_id: str) -> IPR:
     db_ipr = IPR(**ipr.model_dump(), faculty_id=faculty_id)
     db.add(db_ipr)
-    db.commit()
-    db.refresh(db_ipr)
+    await db.commit()
+    await db.refresh(db_ipr)
     return db_ipr
 
-def update_ipr_faculty(
-    db: Session, ipr_id: str, ipr_update: IPRUpdateFaculty
+async def update_ipr_faculty(
+    db: AsyncSession, ipr_id: str, ipr_update: IPRUpdateFaculty
 ) -> Optional[IPR]:
-    db_ipr = db.query(IPR).filter(IPR.id == ipr_id).first()
+    db_ipr = await get_ipr(db, ipr_id)
     if db_ipr:
         update_data = ipr_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_ipr, key, value)
-        db.commit()
-        db.refresh(db_ipr)
+        await db.commit()
+        await db.refresh(db_ipr)
     return db_ipr
 
-def update_ipr_hod(
-    db: Session, ipr_id: str, ipr_update: IPRUpdateHOD
+async def update_ipr_hod(
+    db: AsyncSession, ipr_id: str, ipr_update: IPRUpdateHOD
 ) -> Optional[IPR]:
-    db_ipr = db.query(IPR).filter(IPR.id == ipr_id).first()
+    db_ipr = await get_ipr(db, ipr_id)
     if db_ipr:
         db_ipr.api_score_hod = ipr_update.api_score_hod
-        db.commit()
-        db.refresh(db_ipr)
+        await db.commit()
+        await db.refresh(db_ipr)
     return db_ipr
 
-def update_ipr_director(
-    db: Session, ipr_id: str, ipr_update: IPRUpdateDirector
+async def update_ipr_director(
+    db: AsyncSession, ipr_id: str, ipr_update: IPRUpdateDirector
 ) -> Optional[IPR]:
-    db_ipr = db.query(IPR).filter(IPR.id == ipr_id).first()
+    db_ipr = await get_ipr(db, ipr_id)
     if db_ipr:
         db_ipr.api_score_director = ipr_update.api_score_director
-        db.commit()
-        db.refresh(db_ipr)
+        await db.commit()
+        await db.refresh(db_ipr)
     return db_ipr
 
-def delete_ipr(db: Session, ipr_id: str) -> Optional[IPR]:
-    db_ipr = db.query(IPR).filter(IPR.id == ipr_id).first()
+async def delete_ipr(db: AsyncSession, ipr_id: str) -> Optional[IPR]:
+    db_ipr = await get_ipr(db, ipr_id)
     if db_ipr:
-        db.delete(db_ipr)
-        db.commit()
+        await db.delete(db_ipr)
+        await db.commit()
     return db_ipr
 
-def get_ipr_total_score(db: Session, faculty_id: str) -> float:
-    iprs = db.query(IPR).filter(IPR.faculty_id == faculty_id).all()
-    total_score = sum([entry.research_score_faculty for entry in iprs])
+async def get_ipr_total_score(db: AsyncSession, faculty_id: str) -> float:
+    result = await db.execute(select(IPR).where(IPR.faculty_id == faculty_id))
+    iprs = result.scalars().all()
+    total_score = sum([entry.research_score_faculty or 0.0 for entry in iprs])
     return total_score

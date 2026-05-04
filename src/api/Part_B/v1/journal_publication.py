@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
 
 from ....setup.dependencies import get_db, CurrentUser
@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("/journal-publications", response_model=JournalPublicationResponse, status_code=status.HTTP_201_CREATED)
 async def create_journal_publication(
     current_user: CurrentUser,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     sr_no: Annotated[Optional[int], Form(description="Serial number of the publication")] = None,
     title_with_page_nos: Annotated[Optional[str], Form(description="Title of the paper with page numbers")] = None,
     journal_details: Annotated[Optional[str], Form(description="Name and details of the journal")] = None,
@@ -63,13 +63,13 @@ async def create_journal_publication(
     )
 
     
-    return crud_journal_publication.create_journal_publication(db=db, publication=publication, faculty_id=current_user.id)
+    return await crud_journal_publication.create_journal_publication(db=db, publication=publication, faculty_id=current_user.id)
 
 @router.get("/journal-publications/faculty/{faculty_id}", response_model=List[JournalPublicationResponse])
-def read_journal_publications_by_faculty(
+async def read_journal_publications_by_faculty(
     current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
     faculty_id: Annotated[str, Path(description="UUID of the faculty member")],
-    db: Annotated[Session, Depends(get_db)],
     skip: int = 0,
     limit: int = 100
 ):
@@ -83,13 +83,13 @@ def read_journal_publications_by_faculty(
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this faculty's journal publications")
     
-    publications = crud_journal_publication.get_journal_publications_by_faculty(db, faculty_id=faculty_id, skip=skip, limit=limit)
+    publications = await crud_journal_publication.get_journal_publications_by_faculty(db, faculty_id=faculty_id, skip=skip, limit=limit)
     return publications
 
 @router.get("/journal-publications", response_model=List[JournalPublicationResponse])
-def read_all_journal_publications(
+async def read_all_journal_publications(
     current_user: CurrentUser,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     skip: int = 0,
     limit: int = 100
 ):
@@ -102,15 +102,15 @@ def read_all_journal_publications(
     if not any(role in ["admin", "dean", "vc"] for role in current_user.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view all journal publications")
     
-    publications = crud_journal_publication.get_all_journal_publications(db, skip=skip, limit=limit)
+    publications = await crud_journal_publication.get_all_journal_publications(db, skip=skip, limit=limit)
     return publications
 
 @router.put("/journal-publications/{publication_id}", response_model=JournalPublicationResponse)
-def update_journal_publication(
+async def update_journal_publication(
     current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
     publication_id: Annotated[str, Path(description="UUID of the publication record")],
     publication_update: JournalPublicationUpdateFaculty | JournalPublicationUpdateHOD | JournalPublicationUpdateDirector,
-    db: Annotated[Session, Depends(get_db)]
 ):
     """
     **Update an existing journal publication.**
@@ -122,7 +122,7 @@ def update_journal_publication(
         - **Director:** Can only update `api_score_director`.
     - **Response:** The updated journal publication object.
     """
-    db_publication = crud_journal_publication.get_journal_publication(db, publication_id)
+    db_publication = await crud_journal_publication.get_journal_publication(db, publication_id)
     if db_publication is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journal Publication not found")
 
@@ -131,17 +131,17 @@ def update_journal_publication(
 
     # Role-based update logic
     if "admin" in current_user.roles:
-        updated_publication = crud_journal_publication.update_journal_publication_faculty(db, publication_id, publication_update)
+        updated_publication = await crud_journal_publication.update_journal_publication_faculty(db, publication_id, publication_update)
     elif "hod" in current_user.roles:
         if not isinstance(publication_update, JournalPublicationUpdateHOD):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="HOD can only update api_score_hod")
-        updated_publication = crud_journal_publication.update_journal_publication_hod(db, publication_id, publication_update)
+        updated_publication = await crud_journal_publication.update_journal_publication_hod(db, publication_id, publication_update)
     elif "director" in current_user.roles:
         if not isinstance(publication_update, JournalPublicationUpdateDirector):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Director can only update api_score_director")
-        updated_publication = crud_journal_publication.update_journal_publication_director(db, publication_id, publication_update)
+        updated_publication = await crud_journal_publication.update_journal_publication_director(db, publication_id, publication_update)
     elif "faculty" in current_user.roles and db_publication.faculty_id == current_user.id:
-        updated_publication = crud_journal_publication.update_journal_publication_faculty(db, publication_id, publication_update)
+        updated_publication = await crud_journal_publication.update_journal_publication_faculty(db, publication_id, publication_update)
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this journal publication")
 
@@ -150,10 +150,10 @@ def update_journal_publication(
     return updated_publication
 
 @router.delete("/journal-publications/{publication_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_journal_publication(
+async def delete_journal_publication(
     current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
     publication_id: Annotated[str, Path(description="UUID of the publication record")],
-    db: Annotated[Session, Depends(get_db)]
 ):
     """
     **Delete a journal publication record.**
@@ -161,21 +161,21 @@ def delete_journal_publication(
     - **URL Path:** `/api/v1/part-b/journal-publications/{publication_id}`
     - **Response:** 204 No Content on success.
     """
-    db_publication = crud_journal_publication.get_journal_publication(db, publication_id)
+    db_publication = await crud_journal_publication.get_journal_publication(db, publication_id)
     if db_publication is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journal Publication not found")
 
     if not current_user.has_authority_over(db_publication.faculty_id, "faculty", getattr(db_publication, "department", None)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this journal publication")
     
-    crud_journal_publication.delete_journal_publication(db, publication_id)
+    await crud_journal_publication.delete_journal_publication(db, publication_id)
     return {"message": "Journal Publication deleted successfully"}
 
 @router.get("/journal-publications/summary/{faculty_id}", response_model=JournalPublicationSummary)
-def get_journal_publications_summary(
+async def get_journal_publications_summary(
     current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
     faculty_id: Annotated[str, Path(description="UUID of the faculty member")],
-    db: Annotated[Session, Depends(get_db)]
 ):
     """
     **Get the total API score summary for journal publications.**
@@ -186,5 +186,5 @@ def get_journal_publications_summary(
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this faculty's summary")
     
-    total_score = crud_journal_publication.get_journal_publications_total_score(db, faculty_id)
+    total_score = await crud_journal_publication.get_journal_publications_total_score(db, faculty_id)
     return JournalPublicationSummary(total_score=total_score)

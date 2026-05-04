@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Path
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Annotated
 
-from ....setup.dependencies import get_db, get_current_user, CurrentUser
+from ....setup.dependencies import get_db, CurrentUser
 from ....schema.Part_A.part_a_summary import PartASummaryResponse
 from ....crud.Part_A import (
     teaching_process,
@@ -21,27 +21,27 @@ from ....crud.Part_A import (
 router = APIRouter()
 
 @router.get("/part-a-summary/{faculty_id}", response_model=PartASummaryResponse)
-def get_part_a_summary(
+async def get_part_a_summary(
     current_user: CurrentUser,
-    faculty_id: str,
-    db: Session = Depends(get_db)
+    db: Annotated[AsyncSession, Depends(get_db)],
+    faculty_id: Annotated[str, Path()],
 ):
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Fetch scores from all sections
-    tp_entries = teaching_process.get_teaching_process_by_faculty(db, faculty_id)
-    cf_entries = course_file.get_course_files_by_faculty(db, faculty_id)
-    tm_entries = teaching_methods.get_teaching_methods_by_faculty(db, faculty_id)
-    pj_entries = project.get_projects_by_faculty(db, faculty_id)
-    qe_entries = qualification_enhancement.get_qualification_enhancements_by_faculty(db, faculty_id)
+    tp_entries = await teaching_process.get_teaching_process_by_faculty(db, faculty_id)
+    cf_entries = await course_file.get_course_files_by_faculty(db, faculty_id)
+    tm_entries = await teaching_methods.get_teaching_methods_by_faculty(db, faculty_id)
+    pj_entries = await project.get_projects_by_faculty(db, faculty_id)
+    qe_entries = await qualification_enhancement.get_qualification_enhancements_by_faculty(db, faculty_id)
     
-    sf_entries = student_feedback.get_student_feedback_by_faculty(db, faculty_id)
-    da_entries = departmental_activities.get_departmental_activities_by_faculty(db, faculty_id)
-    ua_entries = university_activities.get_university_activities_by_faculty(db, faculty_id)
-    sc_entries = social_contributions.get_social_contributions_by_faculty(db, faculty_id)
-    ic_entries = industry_connect.get_industry_connect_by_faculty(db, faculty_id)
-    acr_entries = acr.get_acr_by_faculty(db, faculty_id)
+    sf_entries = await student_feedback.get_student_feedback_by_faculty(db, faculty_id)
+    da_entries = await departmental_activities.get_departmental_activities_by_faculty(db, faculty_id)
+    ua_entries = await university_activities.get_university_activities_by_faculty(db, faculty_id)
+    sc_entries = await social_contributions.get_social_contributions_by_faculty(db, faculty_id)
+    ic_entries = await industry_connect.get_industry_connect_by_faculty(db, faculty_id)
+    acr_entries = await acr.get_acr_by_faculty(db, faculty_id)
     
     # 1. Teaching Score (A) - Sum of tp, cf, tm, pj, qe scaled to 25
     # Total marks out of 100 scaled to 25
