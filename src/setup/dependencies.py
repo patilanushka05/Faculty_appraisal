@@ -73,43 +73,72 @@ class User:
 async def get_current_user(authorization: Annotated[Optional[str], Header()] = None) -> User:
     """
     Verifies the JWT from the frontend and returns user data + role.
-    If no authorization header is provided, returns a mock user for development.
+    If no authorization header is provided, returns a mock user ONLY if ALLOW_MOCK_USER is true.
     """
     if not authorization:
-        # Mock user for development/testing
-        return User(
-            id="00000000-0000-0000-0000-000000000001", 
-            roles=["faculty"], 
-            department="Computer Science",
-            school_id="00000000-0000-0000-0000-000000000000",
-            division="Engineering"
-        )
+        if os.getenv("ALLOW_MOCK_USER", "false").lower() == "true":
+            # Mock user for development/testing
+            return User(
+                id="00000000-0000-0000-0000-000000000001", 
+                roles=["admin"], 
+                department="Computer Science",
+                school_id="00000000-0000-0000-0000-000000000000",
+                division="Engineering"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization header missing. Please log in.",
+            )
     
     try:
         token = authorization.split(" ")[1]
-        async with create_async_client(SUPABASE_URL, SUPABASE_ANON_KEY) as supabase:
-            user_response = await supabase.auth.get_user(token)
-            user = user_response.user
+        
+        # Check if we should use local auth or fallback to Supabase
+        if os.getenv("USE_LOCAL_AUTH", "false").lower() == "true":
+            from .local_auth import decode_access_token
+            payload = decode_access_token(token)
             
-            # Check both app_metadata and user_metadata for the role
-            role = user.app_metadata.get("role") or user.user_metadata.get("role") or "faculty"
-            dept = user.user_metadata.get("department") or user.app_metadata.get("department")
-            school_id = user.user_metadata.get("school_id") or user.app_metadata.get("school_id")
-            division = user.user_metadata.get("division") or user.app_metadata.get("division")
+            role = payload.get("role", "faculty")
+            dept = payload.get("department")
+            school_id = payload.get("school_id")
+            division = payload.get("division")
             
             roles = [role] if isinstance(role, str) else role
             
             return User(
-                id=user.id, 
+                id=payload.get("sub"), # JWT standard subject claim is 'sub'
                 roles=roles, 
                 department=dept, 
                 school_id=school_id, 
                 division=division
             )
+        else:
+            # Fallback to Supabase Auth
+            async with create_async_client(SUPABASE_URL, SUPABASE_ANON_KEY) as supabase:
+                user_response = await supabase.auth.get_user(token)
+                user = user_response.user
+                
+                # Check both app_metadata and user_metadata for the role
+                role = user.app_metadata.get("role") or user.user_metadata.get("role") or "faculty"
+                dept = user.user_metadata.get("department") or user.app_metadata.get("department")
+                school_id = user.user_metadata.get("school_id") or user.app_metadata.get("school_id")
+                division = user.user_metadata.get("division") or user.app_metadata.get("division")
+                
+                roles = [role] if isinstance(role, str) else role
+                
+                return User(
+                    id=user.id, 
+                    roles=roles, 
+                    department=dept, 
+                    school_id=school_id, 
+                    division=division
+                )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid or expired token: {str(e)}",
         )
+
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

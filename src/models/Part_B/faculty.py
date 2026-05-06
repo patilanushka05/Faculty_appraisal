@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -18,6 +18,7 @@ class Faculty(Base):
     phone = Column(String, nullable=True)
     academic_year = Column(String, nullable=True) # Current Academic Year for the profile
     role = Column(String, default="faculty") # Roles: faculty, hod, director, dean, vc, admin
+    hashed_password = Column(String, nullable=True) # Used when local authentication is enabled
     
     school_id = Column(UUID(as_uuid=True), ForeignKey("school.id"), nullable=True)
 
@@ -53,4 +54,6 @@ class Faculty(Base):
     acr_entries = relationship("ACR", back_populates="faculty")
 
     # Non-Teaching Relationships
+    non_teaching_appraisals = relationship("NonTeachingAppraisal", back_populates="staff")
+ips
     non_teaching_appraisals = relationship("NonTeachingAppraisal", back_populates="staff")

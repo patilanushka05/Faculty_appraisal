@@ -17,7 +17,9 @@
     - `id` (UUID): Unique identifier of the enclosure.
     - `faculty_id` (UUID): ID of the faculty owner.
     - `enclosure_text` (str): The provided text.
-    - `document` (str): Path to the uploaded file.
+    - `document` (str): Path to the uploaded file. 
+        - *Supabase Mode:* Relative path (e.g., `id/uuid_name.pdf`).
+        - *Local Mode:* Static URL path (e.g., `/uploads/id/uuid_name.pdf`).
 
 ## Access Control
 - **Roles:** `faculty` (own data), `hod`, `director`, `dean`, `vc`, `admin`.

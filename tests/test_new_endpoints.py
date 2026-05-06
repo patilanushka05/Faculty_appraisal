@@ -7,7 +7,7 @@ from uuid import UUID
 
 from unittest.mock import patch
 
-from src.setup.database import SessionLocal
+from src.setup.database import AsyncSessionLocal
 from src.models.Part_B.faculty import Faculty
 from src.models.overall.school import School, DivisionEnum, FormTypeEnum
 

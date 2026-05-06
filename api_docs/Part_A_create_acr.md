@@ -27,7 +27,7 @@
 | sr_no | integer | Serial number |
 | subject | string | Subject/Title |
 | department | string | Department |
-| document | string | Path to the uploaded document |
+| document | string | Path to the uploaded document (URL path in Local Mode) |
 | api_score_hod | float | Score assigned by HOD |
 | api_score_director | float | Score assigned by Director |
 | signature | boolean | Signature status |

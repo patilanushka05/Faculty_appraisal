@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import time
+import os
 from src.setup.database import engine, Base
 from src.setup.dependencies import CurrentUser
 
@@ -28,6 +30,7 @@ from src.models.overall.appraisal_summary import AppraisalSummary
 from src.models.overall.non_teaching import NonTeachingAppraisal
 
 # Import API routers
+from src.api import auth
 from src.api.Part_B.v1 import (
     journal_publication, book_publication, ict_pedagogy,
     research_guidance, research_project, ipr, research_award,
@@ -100,6 +103,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount local storage if enabled
+if os.getenv("USE_LOCAL_STORAGE", "false").lower() == "true":
+    os.makedirs("./uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
+
+# Register Auth Router (Local fallback)
+app.include_router(auth.router, prefix="/api/v1")
 
 # Register Part B Endpoints
 app.include_router(journal_publication.router, prefix="/api/v1/part-b", tags=["Journal Publications"])
