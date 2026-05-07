@@ -8,7 +8,8 @@ from src.schema.Part_B.research_guidance import (
     ResearchGuidanceUpdateFaculty,
     ResearchGuidanceUpdateHOD,
     ResearchGuidanceUpdateDirector,
-)
+    ResearchGuidanceUpdateDean,
+    ResearchGuidanceUpdateVC,)
 
 async def get_research_guidance(db: AsyncSession, guidance_id: str) -> Optional[ResearchGuidance]:
     result = await db.execute(select(ResearchGuidance).where(ResearchGuidance.id == guidance_id))
@@ -81,3 +82,23 @@ async def get_research_guidance_total_score(db: AsyncSession, faculty_id: str) -
         "total_students_me": total_students_me,
         "total_students_phd": total_students_phd,
     }
+
+async def update_research_guidance_dean(
+    db: AsyncSession, id: str, update: ResearchGuidanceUpdateDean
+) -> Optional[ResearchGuidance]:
+    db_obj = await get_research_guidance(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_research_guidance_vc(
+    db: AsyncSession, id: str, update: ResearchGuidanceUpdateVC
+) -> Optional[ResearchGuidance]:
+    db_obj = await get_research_guidance(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

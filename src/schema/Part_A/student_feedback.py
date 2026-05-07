@@ -25,12 +25,20 @@ class StudentFeedbackUpdateHOD(BaseModel):
 class StudentFeedbackUpdateDirector(BaseModel):
     api_score_director: float
 
+class StudentFeedbackUpdateDean(BaseModel):
+    api_score_dean: float
+
+class StudentFeedbackUpdateVC(BaseModel):
+    api_score_vc: float
+
 class StudentFeedbackResponse(StudentFeedbackBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

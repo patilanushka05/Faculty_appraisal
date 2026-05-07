@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -38,7 +39,7 @@ async def create_teaching_methods(
         department=department,
         document=document_path
     )
-    return await crud_teaching_methods.create_teaching_methods(db, methods_data, current_user.id)
+    return mask_scores(await crud_teaching_methods.create_teaching_methods(db, methods_data, current_user.id), current_user)
 
 @router.get("/teaching-methods/faculty/{faculty_id}", response_model=List[TeachingMethodsResponse])
 async def read_teaching_methods_by_faculty(
@@ -48,7 +49,7 @@ async def read_teaching_methods_by_faculty(
 ):
     if "admin" not in current_user.roles and current_user.id != faculty_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-    return await crud_teaching_methods.get_teaching_methods_by_faculty(db, faculty_id)
+    return mask_scores(await crud_teaching_methods.get_teaching_methods_by_faculty(db, faculty_id), current_user)
 
 @router.get("/teaching-methods", response_model=List[TeachingMethodsResponse])
 async def read_all_teaching_methods(
@@ -73,9 +74,9 @@ async def update_teaching_methods(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
     if "admin" in current_user.roles or "hod" in current_user.roles:
-        return await crud_teaching_methods.update_teaching_methods_hod(db, id, methods_update)
+        return mask_scores(await crud_teaching_methods.update_teaching_methods_hod(db, id, methods_update), current_user)
     elif "faculty" in current_user.roles and db_entry.faculty_id == current_user.id:
-        return await crud_teaching_methods.update_teaching_methods_faculty(db, id, methods_update)
+        return mask_scores(await crud_teaching_methods.update_teaching_methods_faculty(db, id, methods_update), current_user)
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 

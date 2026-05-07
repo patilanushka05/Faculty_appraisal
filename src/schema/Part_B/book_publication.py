@@ -32,6 +32,13 @@ class BookPublicationUpdateHOD(BaseModel):
 class BookPublicationUpdateDirector(BaseModel):
     api_score_director: int = Field(..., description="API score given by Director")
 
+
+class BookPublicationUpdateDean(BaseModel):
+    api_score_dean: float
+
+class BookPublicationUpdateVC(BaseModel):
+    api_score_vc: float
+
 class BookPublicationResponse(BookPublicationBase):
     id: UUID
     faculty_id: UUID

@@ -10,9 +10,12 @@ from ....schema.Part_A.departmental_activities import (
     DepartmentalActivityUpdateFaculty,
     DepartmentalActivityUpdateHOD,
     DepartmentalActivityUpdateDirector,
+    DepartmentalActivityUpdateDean,
+    DepartmentalActivityUpdateVC,
     DepartmentalActivityResponse,
 )
 from ....crud.Part_A import departmental_activities as crud_activities
+from ...utils import mask_scores
 
 router = APIRouter()
 
@@ -40,7 +43,7 @@ async def create_activity(
         department=department,
         document=document_path
     )
-    return await crud_activities.create_departmental_activity(db, activity_data, current_user.id)
+    return mask_scores(await crud_activities.create_departmental_activity(db, activity_data, current_user.id), current_user)
 
 @router.get("/department-activities/faculty/{faculty_id}", response_model=List[DepartmentalActivityResponse])
 async def read_activities_by_faculty(
@@ -50,7 +53,7 @@ async def read_activities_by_faculty(
 ):
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=403, detail="Not authorized")
-    return await crud_activities.get_departmental_activities_by_faculty(db, faculty_id)
+    return mask_scores(await crud_activities.get_departmental_activities_by_faculty(db, faculty_id), current_user)
 
 @router.get("/department-activities", response_model=List[DepartmentalActivityResponse])
 async def read_all_activities(
@@ -62,14 +65,15 @@ async def read_all_activities(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin, dean, or vc can view all data")
     
     result = await db.execute(select(crud_activities.DepartmentalActivity))
-    return result.scalars().all()
+    res = result.scalars().all()
+    return mask_scores(list(res), current_user)
 
 @router.put("/department-activities/{id}", response_model=DepartmentalActivityResponse)
 async def update_activity(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     id: Annotated[str, Path()],
-    activity_update: Union[DepartmentalActivityUpdateFaculty, DepartmentalActivityUpdateHOD, DepartmentalActivityUpdateDirector],
+    activity_update: DepartmentalActivityUpdateFaculty | DepartmentalActivityUpdateHOD | DepartmentalActivityUpdateDirector | DepartmentalActivityUpdateDean | DepartmentalActivityUpdateVC,
 ):
     db_entry = await crud_activities.get_departmental_activity(db, id)
     if not db_entry:
@@ -78,16 +82,23 @@ async def update_activity(
     if not current_user.has_authority_over(db_entry.faculty_id, "faculty", db_entry.department):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if current_user.id == db_entry.faculty_id and "faculty" in current_user.roles:
-        return await crud_activities.update_departmental_activity_faculty(db, id, activity_update)
-    
-    if "hod" in current_user.roles or "admin" in current_user.roles:
-        return await crud_activities.update_departmental_activity_hod(db, id, activity_update)
+    res = None
+    if "admin" in current_user.roles:
+        res = await crud_activities.update_departmental_activity_faculty(db, id, activity_update)
+    elif "vc" in current_user.roles:
+        res = await crud_activities.update_departmental_activity_vc(db, id, activity_update)
+    elif "dean" in current_user.roles:
+        res = await crud_activities.update_departmental_activity_dean(db, id, activity_update)
     elif "director" in current_user.roles:
-        return await crud_activities.update_departmental_activity_director(db, id, activity_update)
+        res = await crud_activities.update_departmental_activity_director(db, id, activity_update)
+    elif "hod" in current_user.roles:
+        res = await crud_activities.update_departmental_activity_hod(db, id, activity_update)
+    elif "faculty" in current_user.roles:
+        res = await crud_activities.update_departmental_activity_faculty(db, id, activity_update)
     else:
-        # Fallback for higher roles (Dean/VC) who have authority
-        return await crud_activities.update_departmental_activity_hod(db, id, activity_update)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access for this role")
+    
+    return mask_scores(res, current_user)
 
 @router.delete("/department-activities/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_activity(
@@ -114,6 +125,5 @@ async def get_activity_summary(
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    activities = await crud_activities.get_departmental_activities_by_faculty(db, faculty_id)
-    total_score = sum([a.api_score_faculty for a in activities])
+    total_score = await crud_activities.get_departmental_activity_total_score(db, faculty_id)
     return {"totalScore": min(total_score, 20)}

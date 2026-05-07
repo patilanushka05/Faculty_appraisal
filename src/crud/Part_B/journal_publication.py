@@ -8,7 +8,8 @@ from src.schema.Part_B.journal_publication import (
     JournalPublicationUpdateFaculty,
     JournalPublicationUpdateHOD,
     JournalPublicationUpdateDirector,
-)
+    JournalPublicationUpdateDean,
+    JournalPublicationUpdateVC,)
 
 async def get_journal_publication(db: AsyncSession, publication_id: str) -> Optional[JournalPublication]:
     result = await db.execute(select(JournalPublication).where(JournalPublication.id == publication_id))
@@ -57,6 +58,26 @@ async def update_journal_publication_director(
     db_publication = await get_journal_publication(db, publication_id)
     if db_publication:
         db_publication.api_score_director = publication_update.api_score_director
+        await db.commit()
+        await db.refresh(db_publication)
+    return db_publication
+
+async def update_journal_publication_dean(
+    db: AsyncSession, publication_id: str, publication_update: JournalPublicationUpdateDean
+) -> Optional[JournalPublication]:
+    db_publication = await get_journal_publication(db, publication_id)
+    if db_publication:
+        db_publication.api_score_dean = publication_update.api_score_dean
+        await db.commit()
+        await db.refresh(db_publication)
+    return db_publication
+
+async def update_journal_publication_vc(
+    db: AsyncSession, publication_id: str, publication_update: JournalPublicationUpdateVC
+) -> Optional[JournalPublication]:
+    db_publication = await get_journal_publication(db, publication_id)
+    if db_publication:
+        db_publication.api_score_vc = publication_update.api_score_vc
         await db.commit()
         await db.refresh(db_publication)
     return db_publication

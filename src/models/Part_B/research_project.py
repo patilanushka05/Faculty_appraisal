@@ -17,6 +17,8 @@ class ResearchProject(Base):
     project_status = Column(String(50), name="status", nullable=False) # Ongoing / Completed
     api_score_faculty = Column(Double, default=0.0)
     api_score_hod = Column(Double, default=0.0)
+    api_score_dean = Column(Double, default=0.0)
+    api_score_vc = Column(Double, default=0.0)
     api_score_director = Column(Double, default=0.0)
     department = Column(String, nullable=True)
     document = Column(String, nullable=True)

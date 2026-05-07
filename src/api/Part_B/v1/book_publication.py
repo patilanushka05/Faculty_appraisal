@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -11,7 +12,8 @@ from ....schema.Part_B.book_publication import (
     BookPublicationUpdateDirector,
     BookPublicationResponse,
     BookPublicationSummary,
-)
+    BookPublicationUpdateDean,
+    BookPublicationUpdateVC,)
 from ....crud.Part_B import book_publication as crud_book_publication
 from ....models.Part_B.book_publication import BookPublication as DBBookPublication
 
@@ -48,7 +50,7 @@ async def create_book_publication(
         document=document_path
     )
 
-    return await crud_book_publication.create_book_publication(db=db, publication=publication, faculty_id=current_user.id)
+    return mask_scores(await crud_book_publication.create_book_publication(db=db, publication=publication, faculty_id=current_user.id), current_user)
 
 @router.get("/book-publications/faculty/{faculty_id}", response_model=List[BookPublicationResponse])
 async def read_book_publications_by_faculty(

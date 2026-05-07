@@ -8,6 +8,8 @@ from src.schema.Part_B.self_development_fdp import (
     SelfDevelopmentFDPUpdateFaculty,
     SelfDevelopmentFDPUpdateHOD,
     SelfDevelopmentFDPUpdateDirector,
+    SelfDevelopmentFDPUpdateDean,
+    SelfDevelopmentFDPUpdateVC,
 )
 
 async def get_self_development_fdp(db: AsyncSession, fdp_id: str) -> Optional[SelfDevelopmentFDP]:
@@ -72,3 +74,23 @@ async def get_self_development_fdp_total_score(db: AsyncSession, faculty_id: str
     fdp_entries = await get_self_development_fdp_by_faculty(db, faculty_id, limit=1000)
     total_score = sum([fdp.api_score_faculty or 0.0 for fdp in fdp_entries])
     return total_score
+
+async def update_self_development_fdp_dean(
+    db: AsyncSession, id: str, update: SelfDevelopmentFDPUpdateDean
+) -> Optional[SelfDevelopmentFDP]:
+    db_obj = await get_self_development_fdp(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_self_development_fdp_vc(
+    db: AsyncSession, id: str, update: SelfDevelopmentFDPUpdateVC
+) -> Optional[SelfDevelopmentFDP]:
+    db_obj = await get_self_development_fdp(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

@@ -32,11 +32,20 @@ class ResearchGuidanceUpdateDirector(BaseModel):
     api_score_director: float
 
 # Schema for API response
+
+class ResearchGuidanceUpdateDean(BaseModel):
+    api_score_dean: float
+
+class ResearchGuidanceUpdateVC(BaseModel):
+    api_score_vc: float
+
 class ResearchGuidanceResponse(ResearchGuidanceBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: int
     api_score_hod: float
+    api_score_vc: float
+    api_score_dean: float
     api_score_director: float
 
     class Config:

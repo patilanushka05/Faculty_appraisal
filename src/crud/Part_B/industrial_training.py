@@ -8,7 +8,8 @@ from src.schema.Part_B.industrial_training import (
     IndustrialTrainingUpdateFaculty,
     IndustrialTrainingUpdateHOD,
     IndustrialTrainingUpdateDirector,
-)
+    IndustrialTrainingUpdateDean,
+    IndustrialTrainingUpdateVC,)
 
 async def get_industrial_training(db: AsyncSession, training_id: str) -> Optional[IndustrialTraining]:
     result = await db.execute(select(IndustrialTraining).where(IndustrialTraining.id == training_id))
@@ -73,3 +74,23 @@ async def get_industrial_trainings_total_score(db: AsyncSession, faculty_id: str
     trainings = result.scalars().all()
     total_score = sum([t.api_score_faculty or 0.0 for t in trainings])
     return total_score
+
+async def update_industrial_training_dean(
+    db: AsyncSession, id: str, update: IndustrialTrainingUpdateDean
+) -> Optional[IndustrialTraining]:
+    db_obj = await get_industrial_training(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_industrial_training_vc(
+    db: AsyncSession, id: str, update: IndustrialTrainingUpdateVC
+) -> Optional[IndustrialTraining]:
+    db_obj = await get_industrial_training(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

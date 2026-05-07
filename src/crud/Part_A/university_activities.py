@@ -8,6 +8,8 @@ from ...schema.Part_A.university_activities import (
     UniversityActivityUpdateFaculty,
     UniversityActivityUpdateHOD,
     UniversityActivityUpdateDirector,
+    UniversityActivityUpdateDean,
+    UniversityActivityUpdateVC,
 )
 
 async def get_university_activity(db: AsyncSession, id: str) -> Optional[UniversityActivity]:
@@ -58,6 +60,26 @@ async def update_university_activity_director(
         await db.commit()
         await db.refresh(db_activity)
     return db_activity
+
+async def update_university_activity_dean(
+    db: AsyncSession, id: str, update: UniversityActivityUpdateDean
+) -> Optional[UniversityActivity]:
+    db_obj = await get_university_activity(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_university_activity_vc(
+    db: AsyncSession, id: str, update: UniversityActivityUpdateVC
+) -> Optional[UniversityActivity]:
+    db_obj = await get_university_activity(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
 
 async def delete_university_activity(db: AsyncSession, id: str) -> bool:
     db_activity = await get_university_activity(db, id)

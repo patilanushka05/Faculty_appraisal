@@ -8,6 +8,8 @@ from ...schema.Part_A.departmental_activities import (
     DepartmentalActivityUpdateFaculty,
     DepartmentalActivityUpdateHOD,
     DepartmentalActivityUpdateDirector,
+    DepartmentalActivityUpdateDean,
+    DepartmentalActivityUpdateVC,
 )
 
 async def get_departmental_activity(db: AsyncSession, id: str) -> Optional[DepartmentalActivity]:
@@ -55,6 +57,26 @@ async def update_departmental_activity_director(
     db_activity = await get_departmental_activity(db, id)
     if db_activity:
         db_activity.api_score_director = activity_update.api_score_director
+        await db.commit()
+        await db.refresh(db_activity)
+    return db_activity
+
+async def update_departmental_activity_dean(
+    db: AsyncSession, id: str, activity_update: DepartmentalActivityUpdateDean
+) -> Optional[DepartmentalActivity]:
+    db_activity = await get_departmental_activity(db, id)
+    if db_activity:
+        db_activity.api_score_dean = activity_update.api_score_dean
+        await db.commit()
+        await db.refresh(db_activity)
+    return db_activity
+
+async def update_departmental_activity_vc(
+    db: AsyncSession, id: str, activity_update: DepartmentalActivityUpdateVC
+) -> Optional[DepartmentalActivity]:
+    db_activity = await get_departmental_activity(db, id)
+    if db_activity:
+        db_activity.api_score_vc = activity_update.api_score_vc
         await db.commit()
         await db.refresh(db_activity)
     return db_activity

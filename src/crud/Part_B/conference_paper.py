@@ -8,7 +8,8 @@ from src.schema.Part_B.conference_paper import (
     ConferencePaperUpdateFaculty,
     ConferencePaperUpdateHOD,
     ConferencePaperUpdateDirector,
-)
+    ConferencePaperUpdateDean,
+    ConferencePaperUpdateVC,)
 
 async def get_conference_paper(db: AsyncSession, paper_id: str) -> Optional[ConferencePaper]:
     result = await db.execute(select(ConferencePaper).where(ConferencePaper.id == paper_id))
@@ -73,3 +74,23 @@ async def get_conference_papers_total_score(db: AsyncSession, faculty_id: str) -
     papers = result.scalars().all()
     total_score = sum([paper.research_score_faculty or 0.0 for paper in papers])
     return total_score
+
+async def update_conference_paper_dean(
+    db: AsyncSession, id: str, update: ConferencePaperUpdateDean
+) -> Optional[ConferencePaper]:
+    db_obj = await get_conference_paper(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_conference_paper_vc(
+    db: AsyncSession, id: str, update: ConferencePaperUpdateVC
+) -> Optional[ConferencePaper]:
+    db_obj = await get_conference_paper(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -9,9 +10,10 @@ from ....schema.Part_B.ict_pedagogy import (
     ICTPedagogyUpdateFaculty,
     ICTPedagogyUpdateHOD,
     ICTPedagogyUpdateDirector,
+    ICTPedagogyUpdateDean,
+    ICTPedagogyUpdateVC,
     ICTPedagogyResponse,
-    ICTPedagogySummary,
-)
+    ICTPedagogySummary,)
 from ....crud.Part_B import ict_pedagogy as crud_ict_pedagogy
 from ....models.Part_B.ict_pedagogy import ICTPedagogy as DBICTPedagogy
 
@@ -44,7 +46,7 @@ async def create_ict_pedagogy(
         document=document_path
     )
     
-    return await crud_ict_pedagogy.create_ict_pedagogy(db=db, pedagogy=pedagogy, faculty_id=current_user.id)
+    return mask_scores(await crud_ict_pedagogy.create_ict_pedagogy(db=db, pedagogy=pedagogy, faculty_id=current_user.id), current_user)
 
 @router.get("/pedagogy/faculty/{faculty_id}", response_model=List[ICTPedagogyResponse])
 async def read_ict_pedagogies_by_faculty(
@@ -78,7 +80,7 @@ async def update_ict_pedagogy(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     pedagogy_id: str = Path(...),
-    pedagogy_update: ICTPedagogyUpdateFaculty = None
+    pedagogy_update: ICTPedagogyUpdateFaculty | ICTPedagogyUpdateHOD | ICTPedagogyUpdateDirector | ICTPedagogyUpdateDean | ICTPedagogyUpdateVC = None
 ):
     db_pedagogy = await crud_ict_pedagogy.get_ict_pedagogy(db, pedagogy_id)
     if db_pedagogy is None:
@@ -88,7 +90,15 @@ async def update_ict_pedagogy(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this ICT pedagogy entry")
 
     # Role-based update logic
-    if "admin" in current_user.roles:
+    if "vc" in current_user.roles:
+        if not isinstance(pedagogy_update, ICTPedagogyUpdateVC):
+             raise HTTPException(status_code=400, detail="Invalid update schema for VC")
+        updated_pedagogy = await crud_ict_pedagogy.update_ict_pedagogy_vc(db, pedagogy_id, pedagogy_update)
+    elif "dean" in current_user.roles:
+        if not isinstance(pedagogy_update, ICTPedagogyUpdateDean):
+             raise HTTPException(status_code=400, detail="Invalid update schema for Dean")
+        updated_pedagogy = await crud_ict_pedagogy.update_ict_pedagogy_dean(db, pedagogy_id, pedagogy_update)
+    elif "admin" in current_user.roles:
         updated_pedagogy = await crud_ict_pedagogy.update_ict_pedagogy_faculty(db, pedagogy_id, pedagogy_update)
     elif "hod" in current_user.roles:
         updated_pedagogy = await crud_ict_pedagogy.update_ict_pedagogy_hod(db, pedagogy_id, pedagogy_update)

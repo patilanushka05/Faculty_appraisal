@@ -19,11 +19,20 @@ class ACRUpdateDirector(BaseModel):
     api_score_director: float
     signature: Optional[bool] = None
 
+class ACRUpdateDean(BaseModel):
+    api_score_dean: float
+
+class ACRUpdateVC(BaseModel):
+    api_score_vc: float
+
 class ACRResponse(ACRBase):
     id: UUID
     faculty_id: UUID
+    api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
     signature: bool
 
     class Config:

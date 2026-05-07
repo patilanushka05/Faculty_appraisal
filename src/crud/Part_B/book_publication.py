@@ -8,7 +8,8 @@ from src.schema.Part_B.book_publication import (
     BookPublicationUpdateFaculty,
     BookPublicationUpdateHOD,
     BookPublicationUpdateDirector,
-)
+    BookPublicationUpdateDean,
+    BookPublicationUpdateVC,)
 
 async def get_book_publication(db: AsyncSession, publication_id: str) -> Optional[BookPublication]:
     result = await db.execute(select(BookPublication).where(BookPublication.id == publication_id))
@@ -72,3 +73,23 @@ async def get_book_publications_total_score(db: AsyncSession, faculty_id: str) -
     publications = await get_book_publications_by_faculty(db, faculty_id, limit=1000)
     total_score = sum([pub.api_score_faculty or 0.0 for pub in publications]) 
     return total_score
+
+async def update_book_publication_dean(
+    db: AsyncSession, id: str, update: BookPublicationUpdateDean
+) -> Optional[BookPublication]:
+    db_obj = await get_book_publication(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_book_publication_vc(
+    db: AsyncSession, id: str, update: BookPublicationUpdateVC
+) -> Optional[BookPublication]:
+    db_obj = await get_book_publication(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

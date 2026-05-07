@@ -24,12 +24,20 @@ class IndustryConnectUpdateHOD(BaseModel):
 class IndustryConnectUpdateDirector(BaseModel):
     api_score_director: float
 
+class IndustryConnectUpdateDean(BaseModel):
+    api_score_dean: float
+
+class IndustryConnectUpdateVC(BaseModel):
+    api_score_vc: float
+
 class IndustryConnectResponse(IndustryConnectBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

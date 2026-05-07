@@ -8,6 +8,8 @@ from ...schema.Part_A.social_contributions import (
     SocialContributionUpdateFaculty,
     SocialContributionUpdateHOD,
     SocialContributionUpdateDirector,
+    SocialContributionUpdateDean,
+    SocialContributionUpdateVC,
 )
 
 async def get_social_contribution(db: AsyncSession, id: str) -> Optional[SocialContribution]:
@@ -55,6 +57,26 @@ async def update_social_contribution_director(
     db_contribution = await get_social_contribution(db, id)
     if db_contribution:
         db_contribution.api_score_director = contribution_update.api_score_director
+        await db.commit()
+        await db.refresh(db_contribution)
+    return db_contribution
+
+async def update_social_contribution_dean(
+    db: AsyncSession, id: str, contribution_update: SocialContributionUpdateDean
+) -> Optional[SocialContribution]:
+    db_contribution = await get_social_contribution(db, id)
+    if db_contribution:
+        db_contribution.api_score_dean = contribution_update.api_score_dean
+        await db.commit()
+        await db.refresh(db_contribution)
+    return db_contribution
+
+async def update_social_contribution_vc(
+    db: AsyncSession, id: str, contribution_update: SocialContributionUpdateVC
+) -> Optional[SocialContribution]:
+    db_contribution = await get_social_contribution(db, id)
+    if db_contribution:
+        db_contribution.api_score_vc = contribution_update.api_score_vc
         await db.commit()
         await db.refresh(db_contribution)
     return db_contribution

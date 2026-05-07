@@ -29,11 +29,20 @@ class IndustrialTrainingUpdateDirector(BaseModel):
     api_score_director: float
 
 # Schema for API response
+
+class IndustrialTrainingUpdateDean(BaseModel):
+    api_score_dean: float
+
+class IndustrialTrainingUpdateVC(BaseModel):
+    api_score_vc: float
+
 class IndustrialTrainingResponse(IndustrialTrainingBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: int
     api_score_hod: float
+    api_score_vc: float
+    api_score_dean: float
     api_score_director: float
 
     class Config:

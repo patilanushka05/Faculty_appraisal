@@ -8,7 +8,8 @@ from src.schema.Part_B.research_award import (
     ResearchAwardUpdateFaculty,
     ResearchAwardUpdateHOD,
     ResearchAwardUpdateDirector,
-)
+    ResearchAwardUpdateDean,
+    ResearchAwardUpdateVC,)
 
 async def get_research_award(db: AsyncSession, award_id: str) -> Optional[ResearchAward]:
     result = await db.execute(select(ResearchAward).where(ResearchAward.id == award_id))
@@ -73,3 +74,23 @@ async def get_research_awards_total_score(db: AsyncSession, faculty_id: str) -> 
     awards = result.scalars().all()
     total_score = sum([award.research_score_faculty or 0.0 for award in awards])
     return total_score
+
+async def update_research_award_dean(
+    db: AsyncSession, id: str, update: ResearchAwardUpdateDean
+) -> Optional[ResearchAward]:
+    db_obj = await get_research_award(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_research_award_vc(
+    db: AsyncSession, id: str, update: ResearchAwardUpdateVC
+) -> Optional[ResearchAward]:
+    db_obj = await get_research_award(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

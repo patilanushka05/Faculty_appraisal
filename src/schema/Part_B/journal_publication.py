@@ -24,12 +24,20 @@ class JournalPublicationUpdateHOD(BaseModel):
 class JournalPublicationUpdateDirector(BaseModel):
     api_score_director: Optional[float] = None
 
+class JournalPublicationUpdateDean(BaseModel):
+    api_score_dean: Optional[float] = None
+
+class JournalPublicationUpdateVC(BaseModel):
+    api_score_vc: Optional[float] = None
+
 class JournalPublicationResponse(JournalPublicationBase):
     id: UUID
     faculty_id: UUID
-    api_score_faculty: int
+    api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

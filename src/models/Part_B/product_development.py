@@ -13,6 +13,8 @@ class ProductDevelopment(Base):
     usage_type = Column(String(50), nullable=False) # Used in Lab / Commercialized
     api_score_faculty = Column(Double, default=0.0)
     api_score_hod = Column(Double, default=0.0)
+    api_score_dean = Column(Double, default=0.0)
+    api_score_vc = Column(Double, default=0.0)
     api_score_director = Column(Double, default=0.0)
     department = Column(String, nullable=True)
     document = Column(String, nullable=True)

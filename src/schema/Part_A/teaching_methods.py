@@ -21,11 +21,23 @@ class TeachingMethodsUpdateHOD(BaseModel):
     api_score_hod: float
     signature: Optional[bool] = None
 
+class TeachingMethodsUpdateDirector(BaseModel):
+    api_score_director: float
+
+class TeachingMethodsUpdateDean(BaseModel):
+    api_score_dean: float
+
+class TeachingMethodsUpdateVC(BaseModel):
+    api_score_vc: float
+
 class TeachingMethodsResponse(TeachingMethodsBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
+    api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
     signature: bool
 
     class Config:

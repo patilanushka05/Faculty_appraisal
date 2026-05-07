@@ -41,14 +41,14 @@ class User:
         
         if "admin" in self.roles:
             return True
-            
+
         user_weight = max([role_weights.get(r, 0) for r in self.roles])
         sub_weight = role_weights.get(subordinate_role.lower(), 0)
-        
+
         # Self-access
         if str(self.id) == str(subordinate_id):
             return True
-            
+
         # Hierarchy check
         if user_weight > sub_weight:
             # VC or Registrar Access (University-wide for their respective domains)
@@ -80,7 +80,7 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
             # Mock user for development/testing
             return User(
                 id="00000000-0000-0000-0000-000000000001", 
-                roles=["admin"], 
+                roles=["admin", "faculty"], 
                 department="Computer Science",
                 school_id="00000000-0000-0000-0000-000000000000",
                 division="Engineering"

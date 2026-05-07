@@ -70,6 +70,8 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already registered.")
     
+    is_verified = os.getenv("ALLOW_MOCK_USER", "false").lower() == "true"
+    
     v_token = secrets.token_urlsafe(32)
     new_user = Faculty(
         email=user_in.email,
@@ -77,7 +79,7 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
         department=user_in.department,
         role=user_in.role,
         hashed_password=get_password_hash(user_in.password),
-        is_verified=False,
+        is_verified=is_verified,
         verification_token=v_token
     )
     

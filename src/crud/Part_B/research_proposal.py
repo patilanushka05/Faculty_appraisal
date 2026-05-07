@@ -8,7 +8,8 @@ from src.schema.Part_B.research_proposal import (
     ResearchProposalUpdateFaculty,
     ResearchProposalUpdateHOD,
     ResearchProposalUpdateDirector,
-)
+    ResearchProposalUpdateDean,
+    ResearchProposalUpdateVC,)
 
 async def get_research_proposal(db: AsyncSession, proposal_id: str) -> Optional[ResearchProposal]:
     result = await db.execute(select(ResearchProposal).where(ResearchProposal.id == proposal_id))
@@ -72,3 +73,23 @@ async def get_research_proposals_total_score(db: AsyncSession, faculty_id: str) 
     proposals = await get_research_proposals_by_faculty(db, faculty_id, limit=1000)
     total_score = sum([p.api_score_faculty or 0.0 for p in proposals])
     return total_score
+
+async def update_research_proposal_dean(
+    db: AsyncSession, id: str, update: ResearchProposalUpdateDean
+) -> Optional[ResearchProposal]:
+    db_obj = await get_research_proposal(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_research_proposal_vc(
+    db: AsyncSession, id: str, update: ResearchProposalUpdateVC
+) -> Optional[ResearchProposal]:
+    db_obj = await get_research_proposal(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

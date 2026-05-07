@@ -8,6 +8,8 @@ from ...schema.Part_A.qualification_enhancement import (
     QualificationEnhancementUpdateFaculty,
     QualificationEnhancementUpdateHOD,
     QualificationEnhancementUpdateDirector,
+    QualificationEnhancementUpdateDean,
+    QualificationEnhancementUpdateVC,
 )
 
 async def get_qualification_enhancement(db: AsyncSession, id: str) -> Optional[QualificationEnhancement]:
@@ -70,3 +72,23 @@ async def delete_qualification_enhancement(db: AsyncSession, id: str) -> bool:
 async def get_qualification_enhancement_total_score(db: AsyncSession, faculty_id: str) -> float:
     entries = await get_qualification_enhancements_by_faculty(db, faculty_id)
     return sum([e.api_score_faculty or 0.0 for e in entries])
+
+async def update_qualification_enhancement_dean(
+    db: AsyncSession, id: str, update: QualificationEnhancementUpdateDean
+) -> Optional[QualificationEnhancement]:
+    db_obj = await get_qualification_enhancement(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_qualification_enhancement_vc(
+    db: AsyncSession, id: str, update: QualificationEnhancementUpdateVC
+) -> Optional[QualificationEnhancement]:
+    db_obj = await get_qualification_enhancement(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

@@ -8,7 +8,8 @@ from src.schema.Part_B.ipr import (
     IPRUpdateFaculty,
     IPRUpdateHOD,
     IPRUpdateDirector,
-)
+    IPRUpdateDean,
+    IPRUpdateVC,)
 
 async def get_ipr(db: AsyncSession, ipr_id: str) -> Optional[IPR]:
     result = await db.execute(select(IPR).where(IPR.id == ipr_id))
@@ -73,3 +74,23 @@ async def get_ipr_total_score(db: AsyncSession, faculty_id: str) -> float:
     iprs = result.scalars().all()
     total_score = sum([entry.research_score_faculty or 0.0 for entry in iprs])
     return total_score
+
+async def update_ipr_dean(
+    db: AsyncSession, id: str, update: IPRUpdateDean
+) -> Optional[IPR]:
+    db_obj = await get_ipr(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_ipr_vc(
+    db: AsyncSession, id: str, update: IPRUpdateVC
+) -> Optional[IPR]:
+    db_obj = await get_ipr(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

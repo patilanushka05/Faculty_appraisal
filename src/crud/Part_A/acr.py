@@ -7,6 +7,8 @@ from ...schema.Part_A.acr import (
     ACRCreate,
     ACRUpdateHOD,
     ACRUpdateDirector,
+    ACRUpdateDean,
+    ACRUpdateVC,
 )
 
 async def get_acr(db: AsyncSession, id: str) -> Optional[ACR]:
@@ -42,6 +44,26 @@ async def update_acr_director(
         update_data = acr_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_acr, key, value)
+        await db.commit()
+        await db.refresh(db_acr)
+    return db_acr
+
+async def update_acr_dean(
+    db: AsyncSession, id: str, acr_update: ACRUpdateDean
+) -> Optional[ACR]:
+    db_acr = await get_acr(db, id)
+    if db_acr:
+        db_acr.api_score_dean = acr_update.api_score_dean
+        await db.commit()
+        await db.refresh(db_acr)
+    return db_acr
+
+async def update_acr_vc(
+    db: AsyncSession, id: str, acr_update: ACRUpdateVC
+) -> Optional[ACR]:
+    db_acr = await get_acr(db, id)
+    if db_acr:
+        db_acr.api_score_vc = acr_update.api_score_vc
         await db.commit()
         await db.refresh(db_acr)
     return db_acr

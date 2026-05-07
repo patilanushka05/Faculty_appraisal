@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -10,9 +11,10 @@ from ....schema.Part_B.conference_paper import (
     ConferencePaperUpdateFaculty,
     ConferencePaperUpdateHOD,
     ConferencePaperUpdateDirector,
+    ConferencePaperUpdateDean,
+    ConferencePaperUpdateVC,
     ConferencePaperResponse,
-    ConferencePaperSummary,
-)
+    ConferencePaperSummary,)
 from ....crud.Part_B import conference_paper as crud_conference_paper
 from ....models.Part_B.conference_paper import ConferencePaper as DBConferencePaper
 
@@ -47,7 +49,7 @@ async def create_conference_paper(
         document=document_path
     )
     
-    return await crud_conference_paper.create_conference_paper(db=db, paper=paper, faculty_id=current_user.id)
+    return mask_scores(await crud_conference_paper.create_conference_paper(db=db, paper=paper, faculty_id=current_user.id), current_user)
 
 @router.get("/conferences/faculty/{faculty_id}", response_model=List[ConferencePaperResponse])
 async def read_conference_papers_by_faculty(
@@ -81,7 +83,7 @@ async def update_conference_paper(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     paper_id: str = Path(...),
-    paper_update: ConferencePaperUpdateFaculty = None
+    paper_update: ConferencePaperUpdateFaculty | ConferencePaperUpdateHOD | ConferencePaperUpdateDirector | ConferencePaperUpdateDean | ConferencePaperUpdateVC = None
 ):
     db_paper = await crud_conference_paper.get_conference_paper(db, paper_id)
     if db_paper is None:
@@ -91,7 +93,15 @@ async def update_conference_paper(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this conference paper")
 
     # Role-based update logic
-    if "admin" in current_user.roles:
+    if "vc" in current_user.roles:
+        if not isinstance(paper_update, ConferencePaperUpdateVC):
+             raise HTTPException(status_code=400, detail="Invalid update schema for VC")
+        updated_paper = await crud_conference_paper.update_conference_paper_vc(db, paper_id, paper_update)
+    elif "dean" in current_user.roles:
+        if not isinstance(paper_update, ConferencePaperUpdateDean):
+             raise HTTPException(status_code=400, detail="Invalid update schema for Dean")
+        updated_paper = await crud_conference_paper.update_conference_paper_dean(db, paper_id, paper_update)
+    elif "admin" in current_user.roles:
         updated_paper = await crud_conference_paper.update_conference_paper_faculty(db, paper_id, paper_update)
     elif "hod" in current_user.roles:
         updated_paper = await crud_conference_paper.update_conference_paper_hod(db, paper_id, paper_update)

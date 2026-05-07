@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -12,7 +13,8 @@ from ....schema.Part_B.research_award import (
     ResearchAwardUpdateDirector,
     ResearchAwardResponse,
     ResearchAwardSummary,
-)
+    ResearchAwardUpdateDean,
+    ResearchAwardUpdateVC,)
 from ....crud.Part_B import research_award as crud_research_award
 
 router = APIRouter()
@@ -44,7 +46,7 @@ async def create_research_award(
         document=document_path
     )
     
-    return await crud_research_award.create_research_award(db=db, award=award, faculty_id=current_user.id)
+    return mask_scores(await crud_research_award.create_research_award(db=db, award=award, faculty_id=current_user.id), current_user)
 
 @router.get("/research-awards/faculty/{faculty_id}", response_model=List[ResearchAwardResponse])
 async def read_research_awards_by_faculty(

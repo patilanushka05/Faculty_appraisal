@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -12,7 +13,8 @@ from ....schema.Part_B.research_guidance import (
     ResearchGuidanceUpdateDirector,
     ResearchGuidanceResponse,
     ResearchGuidanceSummary,
-)
+    ResearchGuidanceUpdateDean,
+    ResearchGuidanceUpdateVC,)
 from ....crud.Part_B import research_guidance as crud_research_guidance
 
 router = APIRouter()
@@ -44,7 +46,7 @@ async def create_research_guidance(
         document=document_path
     )
     
-    return await crud_research_guidance.create_research_guidance(db=db, guidance=guidance, faculty_id=current_user.id)
+    return mask_scores(await crud_research_guidance.create_research_guidance(db=db, guidance=guidance, faculty_id=current_user.id), current_user)
 
 @router.get("/research-guidance/faculty/{faculty_id}", response_model=List[ResearchGuidanceResponse])
 async def read_research_guidance_by_faculty(

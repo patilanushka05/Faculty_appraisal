@@ -11,6 +11,7 @@ from src.schema.overall.non_teaching import (
     NonTeachingVCFinalizeUpdate
 )
 from src.crud.overall import non_teaching as crud
+from src.api.utils import mask_scores
 from uuid import UUID
 from typing import List, Optional
 
@@ -23,7 +24,7 @@ async def create_appraisal(
     db: AsyncSession = Depends(get_db)
 ):
     """Initializes a new appraisal (Staff only)."""
-    return await crud.create_appraisal(db, current_user.id, appraisal_in)
+    return mask_scores(await crud.create_appraisal(db, current_user.id, appraisal_in), current_user)
 
 @router.get("/{staff_id}", response_model=List[NonTeachingAppraisalResponse])
 async def get_appraisals(
@@ -34,15 +35,13 @@ async def get_appraisals(
 ):
     """Retrieves appraisal details (Hierarchy enforced)."""
     # Authorization check
-    # Note: We need the subordinate's role/dept to check authority correctly.
-    # For now, we'll implement a basic check and refine it if needed.
     if str(current_user.id) != str(staff_id):
-        # Higher authority check would normally go here.
-        # Since we don't have the staff profile easily accessible in this route without a query,
-        # we'll assume the reporting tree check happens inside crud or similar.
+        # In a real scenario, we'd check if current_user has authority over staff_id
+        # For now, we trust the hierarchical check in dependencies or crud
         pass 
         
-    return await crud.get_appraisal_by_staff(db, staff_id, academic_year)
+    res = await crud.get_appraisal_by_staff(db, staff_id, academic_year)
+    return mask_scores(res, current_user)
 
 @router.patch("/{id}/self-appraisal", response_model=NonTeachingAppraisalResponse)
 async def submit_self_appraisal(
@@ -59,7 +58,7 @@ async def submit_self_appraisal(
     if str(appraisal.staff_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Not authorized to submit this appraisal")
     
-    return await crud.update_self_appraisal(db, id, update_in)
+    return mask_scores(await crud.update_self_appraisal(db, id, update_in), current_user)
 
 @router.patch("/{id}/section-head-assessment", response_model=NonTeachingAppraisalResponse)
 async def section_head_assessment(
@@ -72,7 +71,7 @@ async def section_head_assessment(
     if "section_head" not in current_user.roles and "admin" not in current_user.roles:
         raise HTTPException(status_code=403, detail="Role 'section_head' required")
     
-    return await crud.update_section_head_assessment(db, id, update_in)
+    return mask_scores(await crud.update_section_head_assessment(db, id, update_in), current_user)
 
 @router.patch("/{id}/registrar-review", response_model=NonTeachingAppraisalResponse)
 async def registrar_review(
@@ -85,7 +84,7 @@ async def registrar_review(
     if "registrar" not in current_user.roles and "admin" not in current_user.roles:
         raise HTTPException(status_code=403, detail="Role 'registrar' required")
     
-    return await crud.update_registrar_review(db, id, update_in)
+    return mask_scores(await crud.update_registrar_review(db, id, update_in), current_user)
 
 @router.patch("/{id}/vc-finalize", response_model=NonTeachingAppraisalResponse)
 async def vc_finalize(
@@ -98,4 +97,4 @@ async def vc_finalize(
     if "vc" not in current_user.roles and "admin" not in current_user.roles:
         raise HTTPException(status_code=403, detail="Role 'vc' required")
     
-    return await crud.finalize_appraisal_vc(db, id, update_in)
+    return mask_scores(await crud.finalize_appraisal_vc(db, id, update_in), current_user)

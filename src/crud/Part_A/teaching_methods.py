@@ -7,6 +7,9 @@ from ...schema.Part_A.teaching_methods import (
     TeachingMethodsCreate,
     TeachingMethodsUpdateFaculty,
     TeachingMethodsUpdateHOD,
+    TeachingMethodsUpdateDirector,
+    TeachingMethodsUpdateDean,
+    TeachingMethodsUpdateVC,
 )
 
 async def get_teaching_methods(db: AsyncSession, id: str) -> Optional[TeachingMethods]:
@@ -47,6 +50,36 @@ async def update_teaching_methods_hod(
         await db.commit()
         await db.refresh(db_teaching_methods)
     return db_teaching_methods
+
+async def update_teaching_methods_director(
+    db: AsyncSession, id: str, update: TeachingMethodsUpdateDirector
+) -> Optional[TeachingMethods]:
+    db_obj = await get_teaching_methods(db, id)
+    if db_obj:
+        db_obj.api_score_director = update.api_score_director
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_teaching_methods_dean(
+    db: AsyncSession, id: str, update: TeachingMethodsUpdateDean
+) -> Optional[TeachingMethods]:
+    db_obj = await get_teaching_methods(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_teaching_methods_vc(
+    db: AsyncSession, id: str, update: TeachingMethodsUpdateVC
+) -> Optional[TeachingMethods]:
+    db_obj = await get_teaching_methods(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
 
 async def delete_teaching_methods(db: AsyncSession, id: str) -> bool:
     db_teaching_methods = await get_teaching_methods(db, id)

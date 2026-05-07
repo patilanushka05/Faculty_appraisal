@@ -27,19 +27,28 @@ class ConferencePaperUpdateFaculty(ConferencePaperBase):
 
 # Schema for HOD to update API score
 class ConferencePaperUpdateHOD(BaseModel):
-    research_score_hod: float
+    api_score_hod: float
 
 # Schema for Director to update API score
 class ConferencePaperUpdateDirector(BaseModel):
-    research_score_director: float
+    api_score_director: float
 
 # Schema for API response
+
+class ConferencePaperUpdateDean(BaseModel):
+    api_score_dean: float
+
+class ConferencePaperUpdateVC(BaseModel):
+    api_score_vc: float
+
 class ConferencePaperResponse(ConferencePaperBase):
     id: UUID
     faculty_id: UUID
-    api_score_faculty: int
-    research_score_hod: float
-    research_score_director: float
+    api_score_faculty: float
+    api_score_hod: float
+    api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

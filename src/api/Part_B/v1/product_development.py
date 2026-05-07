@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -11,7 +12,8 @@ from ....schema.Part_B.product_development import (
     ProductDevelopmentUpdateDirector,
     ProductDevelopmentResponse,
     ProductDevelopmentSummary,
-)
+    ProductDevelopmentUpdateDean,
+    ProductDevelopmentUpdateVC,)
 from ....crud.Part_B import product_development as crud_product_development
 from ....models.Part_B.product_development import ProductDevelopment as DBProductDevelopment
 
@@ -40,7 +42,7 @@ async def create_product_development(
         document=document_path
     )
     
-    return await crud_product_development.create_product_development(db=db, product=product, faculty_id=current_user.id)
+    return mask_scores(await crud_product_development.create_product_development(db=db, product=product, faculty_id=current_user.id), current_user)
 
 @router.get("/products/faculty/{faculty_id}", response_model=List[ProductDevelopmentResponse])
 async def read_product_developments_by_faculty(

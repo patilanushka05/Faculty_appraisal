@@ -5,14 +5,28 @@ This document provides a comprehensive guide to all endpoints in the Faculty App
 ## 1. Core Principles
 - **Asynchronous Engine**: The backend uses an asynchronous non-blocking architecture (`asyncpg`) for ultra-low latency.
 - **Base URL**: `https://[your-app-url]/api/v1`
-- **Auth**: Supabase JWT Bearer Token in `Authorization` header.
+- **Auth**: Bearer Token in `Authorization` header (Supabase or Local Auth).
 - **Monitoring**: Every response includes an `X-Process-Time` header showing backend execution time in seconds.
 - **Data Types**: All IDs (`id`, `faculty_id`) are UUID strings.
 - **File Uploads**: Use `multipart/form-data` for endpoints accepting a `file`.
 
 ---
 
-## 2. Standard Appraisal Categories
+## 2. Authentication & Session Management
+These endpoints are used for user lifecycle and managing the active session. For a detailed guide, see [Auth_Session_Flow.md](../api_docs/Auth_Session_Flow.md).
+
+### 2.1. Registration & Verification
+- `POST /api/v1/auth/register`: Create a new account.
+- `GET /api/v1/auth/verify-email`: Activate account via email token.
+
+### 2.2. Login & Session
+- `POST /api/v1/auth/login`: Authenticate and receive a JWT.
+- `GET /api/v1/auth/session`: Retrieve current user metadata (roles, dept).
+- `GET /protected`: Test endpoint to verify token claims and jurisdiction.
+
+---
+
+## 3. Standard Appraisal Categories
 Every category (e.g., `/part-a/teaching-process`, `/part-b/journal-publications`) follows a standard **6-endpoint pattern**.
 
 ### The 6 Standard Endpoints

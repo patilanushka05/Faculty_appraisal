@@ -42,3 +42,9 @@ class SelfDevelopmentFDPResponse(SelfDevelopmentFDPBase):
 # Schema for total score summary
 class SelfDevelopmentFDPSummary(BaseModel):
     total_score: float
+
+class SelfDevelopmentFDPUpdateDean(BaseModel):
+    api_score_dean: float
+
+class SelfDevelopmentFDPUpdateVC(BaseModel):
+    api_score_vc: float

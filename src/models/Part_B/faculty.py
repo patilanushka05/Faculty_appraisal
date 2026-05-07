@@ -19,6 +19,8 @@ class Faculty(Base):
     academic_year = Column(String, nullable=True) # Current Academic Year for the profile
     role = Column(String, default="faculty") # Roles: faculty, hod, director, dean, vc, admin
     hashed_password = Column(String, nullable=True) # Used when local authentication is enabled
+    is_verified = Column(Boolean, default=True) # Default to true for Supabase users, false for local
+    verification_token = Column(String, nullable=True)
     
     school_id = Column(UUID(as_uuid=True), ForeignKey("school.id"), nullable=True)
 
@@ -54,6 +56,4 @@ class Faculty(Base):
     acr_entries = relationship("ACR", back_populates="faculty")
 
     # Non-Teaching Relationships
-    non_teaching_appraisals = relationship("NonTeachingAppraisal", back_populates="staff")
-ips
     non_teaching_appraisals = relationship("NonTeachingAppraisal", back_populates="staff")

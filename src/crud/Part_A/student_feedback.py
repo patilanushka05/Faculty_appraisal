@@ -8,6 +8,8 @@ from ...schema.Part_A.student_feedback import (
     StudentFeedbackUpdateFaculty,
     StudentFeedbackUpdateHOD,
     StudentFeedbackUpdateDirector,
+    StudentFeedbackUpdateDean,
+    StudentFeedbackUpdateVC,
 )
 
 async def get_student_feedback(db: AsyncSession, id: str) -> Optional[StudentFeedback]:
@@ -56,6 +58,26 @@ async def update_student_feedback_director(
         await db.commit()
         await db.refresh(db_feedback)
     return db_feedback
+
+async def update_student_feedback_dean(
+    db: AsyncSession, id: str, update: StudentFeedbackUpdateDean
+) -> Optional[StudentFeedback]:
+    db_obj = await get_student_feedback(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_student_feedback_vc(
+    db: AsyncSession, id: str, update: StudentFeedbackUpdateVC
+) -> Optional[StudentFeedback]:
+    db_obj = await get_student_feedback(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
 
 async def delete_student_feedback(db: AsyncSession, id: str) -> bool:
     db_feedback = await get_student_feedback(db, id)

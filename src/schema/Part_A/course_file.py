@@ -23,11 +23,23 @@ class CourseFileUpdateHOD(BaseModel):
     api_score_hod: float
     signature: Optional[bool] = None
 
+class CourseFileUpdateDirector(BaseModel):
+    api_score_director: float
+
+class CourseFileUpdateDean(BaseModel):
+    api_score_dean: float
+
+class CourseFileUpdateVC(BaseModel):
+    api_score_vc: float
+
 class CourseFileResponse(CourseFileBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
+    api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
     signature: bool
 
     class Config:

@@ -1,3 +1,4 @@
+from src.setup.dependencies import User, get_current_user
 from httpx import AsyncClient, ASGITransport
 from main import app
 from uuid import uuid4
@@ -11,6 +12,9 @@ async def test_non_teaching_workflow():
     async with AsyncClient(transport=ASGITransport(app=app), base_url=BASE_URL) as client:
         # 1. Mock a staff user and initialize appraisal
         academic_year = "2025-26"
+        
+        async def get_staff_user(): return User(id="00000000-0000-0000-0000-000000000001", roles=["staff"])
+        app.dependency_overrides[get_current_user] = get_staff_user
         
         appraisal_data = {
             "academic_year": academic_year,
@@ -64,8 +68,45 @@ async def test_non_teaching_workflow():
         response = await client.patch(f"/api/v1/non-teaching/{appraisal_id}/section-head-assessment", json=sh_assessment_data)
         # Verify it checks roles - currently mock user is 'faculty'
         assert response.status_code == 403 
+
+        # 4. Mock Section Head and submit assessment
+        async def get_sh_user(): return User(id="sh_id", roles=["section_head"])
+        app.dependency_overrides[get_current_user] = get_sh_user
         
-        # 4. Get Appraisal Detail
+        response = await client.patch(f"/api/v1/non-teaching/{appraisal_id}/section-head-assessment", json=sh_assessment_data)
+        assert response.status_code == 200
+        
+        # 5. Registrar Review
+        async def get_registrar_user(): return User(id="reg_id", roles=["registrar"])
+        app.dependency_overrides[get_current_user] = get_registrar_user
+        
+        registrar_data = {
+            "responsibilities_registrar": 7.5,
+            "contributions_registrar": 6.0,
+            "achievements_registrar": 3.0,
+            "registrar_recommendation": "Confirmed.",
+            "registrar_grade": "A",
+            "registrar_signature_date": "2026-05-10"
+        }
+        response = await client.patch(f"/api/v1/non-teaching/{appraisal_id}/registrar-review", json=registrar_data)
+        assert response.status_code == 200
+        
+        # 6. VC Finalize
+        async def get_vc_user(): return User(id="vc_id", roles=["vc"])
+        app.dependency_overrides[get_current_user] = get_vc_user
+        
+        vc_data = {
+            "vc_final_grade": "A",
+            "vc_remarks": "Good performance.",
+            "vc_signature_date": "2026-05-15"
+        }
+        response = await client.patch(f"/api/v1/non-teaching/{appraisal_id}/vc-finalize", json=vc_data)
+        assert response.status_code == 200
+        assert response.json()["status"] == "FINALIZED"
+        
+        app.dependency_overrides.clear()
+        
+        # 7. Get Appraisal Detail
         response = await client.get("/api/v1/non-teaching/00000000-0000-0000-0000-000000000001")
         assert response.status_code == 200
         assert len(response.json()) > 0

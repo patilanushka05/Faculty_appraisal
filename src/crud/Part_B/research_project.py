@@ -8,7 +8,8 @@ from src.schema.Part_B.research_project import (
     ResearchProjectUpdateFaculty,
     ResearchProjectUpdateHOD,
     ResearchProjectUpdateDirector,
-)
+    ResearchProjectUpdateDean,
+    ResearchProjectUpdateVC,)
 
 async def get_research_project(db: AsyncSession, project_id: str) -> Optional[ResearchProject]:
     result = await db.execute(select(ResearchProject).where(ResearchProject.id == project_id))
@@ -73,3 +74,23 @@ async def get_research_projects_total_score(db: AsyncSession, faculty_id: str) -
     projects = result.scalars().all()
     total_score = sum([p.api_score_faculty or 0.0 for p in projects])
     return total_score
+
+async def update_research_project_dean(
+    db: AsyncSession, id: str, update: ResearchProjectUpdateDean
+) -> Optional[ResearchProject]:
+    db_obj = await get_research_project(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_research_project_vc(
+    db: AsyncSession, id: str, update: ResearchProjectUpdateVC
+) -> Optional[ResearchProject]:
+    db_obj = await get_research_project(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

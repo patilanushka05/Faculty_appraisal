@@ -23,12 +23,20 @@ class UniversityActivityUpdateHOD(BaseModel):
 class UniversityActivityUpdateDirector(BaseModel):
     api_score_director: float
 
+class UniversityActivityUpdateDean(BaseModel):
+    api_score_dean: float
+
+class UniversityActivityUpdateVC(BaseModel):
+    api_score_vc: float
+
 class UniversityActivityResponse(UniversityActivityBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

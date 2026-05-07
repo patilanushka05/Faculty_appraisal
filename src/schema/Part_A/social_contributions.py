@@ -24,12 +24,20 @@ class SocialContributionUpdateHOD(BaseModel):
 class SocialContributionUpdateDirector(BaseModel):
     api_score_director: float
 
+class SocialContributionUpdateDean(BaseModel):
+    api_score_dean: float
+
+class SocialContributionUpdateVC(BaseModel):
+    api_score_vc: float
+
 class SocialContributionResponse(SocialContributionBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

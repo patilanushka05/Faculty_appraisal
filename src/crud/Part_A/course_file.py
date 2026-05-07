@@ -7,6 +7,9 @@ from ...schema.Part_A.course_file import (
     CourseFileCreate,
     CourseFileUpdateFaculty,
     CourseFileUpdateHOD,
+    CourseFileUpdateDirector,
+    CourseFileUpdateDean,
+    CourseFileUpdateVC,
 )
 
 async def get_course_file(db: AsyncSession, id: str) -> Optional[CourseFile]:
@@ -44,6 +47,36 @@ async def update_course_file_hod(
         update_data = course_file_update.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(db_course_file, key, value)
+        await db.commit()
+        await db.refresh(db_course_file)
+    return db_course_file
+
+async def update_course_file_director(
+    db: AsyncSession, id: str, course_file_update: CourseFileUpdateDirector
+) -> Optional[CourseFile]:
+    db_course_file = await get_course_file(db, id)
+    if db_course_file:
+        db_course_file.api_score_director = course_file_update.api_score_director
+        await db.commit()
+        await db.refresh(db_course_file)
+    return db_course_file
+
+async def update_course_file_dean(
+    db: AsyncSession, id: str, course_file_update: CourseFileUpdateDean
+) -> Optional[CourseFile]:
+    db_course_file = await get_course_file(db, id)
+    if db_course_file:
+        db_course_file.api_score_dean = course_file_update.api_score_dean
+        await db.commit()
+        await db.refresh(db_course_file)
+    return db_course_file
+
+async def update_course_file_vc(
+    db: AsyncSession, id: str, course_file_update: CourseFileUpdateVC
+) -> Optional[CourseFile]:
+    db_course_file = await get_course_file(db, id)
+    if db_course_file:
+        db_course_file.api_score_vc = course_file_update.api_score_vc
         await db.commit()
         await db.refresh(db_course_file)
     return db_course_file

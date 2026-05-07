@@ -9,9 +9,13 @@ from ....schema.Part_A.course_file import (
     CourseFileCreate,
     CourseFileUpdateFaculty,
     CourseFileUpdateHOD,
+    CourseFileUpdateDirector,
+    CourseFileUpdateDean,
+    CourseFileUpdateVC,
     CourseFileResponse,
 )
 from ....crud.Part_A import course_file as crud_course_file
+from ...utils import mask_scores
 
 router = APIRouter()
 
@@ -41,7 +45,7 @@ async def create_course_file(
         department=department,
         document=document_path
     )
-    return await crud_course_file.create_course_file(db, course_file_data, current_user.id)
+    return mask_scores(await crud_course_file.create_course_file(db, course_file_data, current_user.id), current_user)
 
 @router.get("/course-files/faculty/{faculty_id}", response_model=List[CourseFileResponse])
 async def read_course_files_by_faculty(
@@ -51,7 +55,8 @@ async def read_course_files_by_faculty(
 ):
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=403, detail="Not authorized")
-    return await crud_course_file.get_course_files_by_faculty(db, faculty_id)
+    res = await crud_course_file.get_course_files_by_faculty(db, faculty_id)
+    return mask_scores(res, current_user)
 
 @router.get("/course-files", response_model=List[CourseFileResponse])
 async def read_all_course_files(
@@ -63,14 +68,15 @@ async def read_all_course_files(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin, dean, or vc can view all data")
     
     result = await db.execute(select(crud_course_file.CourseFile))
-    return result.scalars().all()
+    res = result.scalars().all()
+    return mask_scores(list(res), current_user)
 
 @router.put("/course-files/{id}", response_model=CourseFileResponse)
 async def update_course_file(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     id: Annotated[str, Path()],
-    course_file_update: Union[CourseFileUpdateFaculty, CourseFileUpdateHOD],
+    course_file_update: CourseFileUpdateFaculty | CourseFileUpdateHOD | CourseFileUpdateDirector | CourseFileUpdateDean | CourseFileUpdateVC,
 ):
     db_entry = await crud_course_file.get_course_file(db, id)
     if not db_entry:
@@ -79,22 +85,23 @@ async def update_course_file(
     if not current_user.has_authority_over(db_entry.faculty_id, "faculty", db_entry.department):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if current_user.id == db_entry.faculty_id and "faculty" in current_user.roles:
-        if isinstance(course_file_update, CourseFileUpdateFaculty):
-            return await crud_course_file.update_course_file_faculty(db, id, course_file_update)
-        else:
-             raise HTTPException(status_code=400, detail="Invalid update data for faculty")
-    
-    # Authority confirmed (HOD or higher)
-    if any(role in ["hod", "director", "dean", "vc", "admin"] for role in current_user.roles):
-        if isinstance(course_file_update, CourseFileUpdateHOD):
-            return await crud_course_file.update_course_file_hod(db, id, course_file_update)
-        else:
-             # Fallback if update data was sent as Faculty schema but user is HOD
-             # This might happen if frontend doesn't distinguish.
-             return await crud_course_file.update_course_file_hod(db, id, course_file_update)
+    res = None
+    if "admin" in current_user.roles:
+        res = await crud_course_file.update_course_file_faculty(db, id, course_file_update)
+    elif "vc" in current_user.roles:
+        res = await crud_course_file.update_course_file_vc(db, id, course_file_update)
+    elif "dean" in current_user.roles:
+        res = await crud_course_file.update_course_file_dean(db, id, course_file_update)
+    elif "director" in current_user.roles:
+        res = await crud_course_file.update_course_file_director(db, id, course_file_update)
+    elif "hod" in current_user.roles:
+        res = await crud_course_file.update_course_file_hod(db, id, course_file_update)
+    elif "faculty" in current_user.roles:
+        res = await crud_course_file.update_course_file_faculty(db, id, course_file_update)
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access for this role")
 
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    return mask_scores(res, current_user)
 
 @router.delete("/course-files/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course_file(

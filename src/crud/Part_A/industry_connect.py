@@ -8,6 +8,8 @@ from ...schema.Part_A.industry_connect import (
     IndustryConnectUpdateFaculty,
     IndustryConnectUpdateHOD,
     IndustryConnectUpdateDirector,
+    IndustryConnectUpdateDean,
+    IndustryConnectUpdateVC,
 )
 
 async def get_industry_connect(db: AsyncSession, id: str) -> Optional[IndustryConnect]:
@@ -55,6 +57,26 @@ async def update_industry_connect_director(
     db_connect = await get_industry_connect(db, id)
     if db_connect:
         db_connect.api_score_director = connect_update.api_score_director
+        await db.commit()
+        await db.refresh(db_connect)
+    return db_connect
+
+async def update_industry_connect_dean(
+    db: AsyncSession, id: str, connect_update: IndustryConnectUpdateDean
+) -> Optional[IndustryConnect]:
+    db_connect = await get_industry_connect(db, id)
+    if db_connect:
+        db_connect.api_score_dean = connect_update.api_score_dean
+        await db.commit()
+        await db.refresh(db_connect)
+    return db_connect
+
+async def update_industry_connect_vc(
+    db: AsyncSession, id: str, connect_update: IndustryConnectUpdateVC
+) -> Optional[IndustryConnect]:
+    db_connect = await get_industry_connect(db, id)
+    if db_connect:
+        db_connect.api_score_vc = connect_update.api_score_vc
         await db.commit()
         await db.refresh(db_connect)
     return db_connect

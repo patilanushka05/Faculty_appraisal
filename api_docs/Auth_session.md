@@ -23,3 +23,7 @@
 ## Integration Note
 - Unlike Supabase, this local API is **stateless**. The backend does not remember "sessions" in memory.
 - If this endpoint returns 401, the frontend **MUST** clear the token from its local storage and redirect to the login page.
+
+## Detailed Guide
+For the complete authentication and session lifecycle, see [Auth_Session_Flow.md](./Auth_Session_Flow.md).
+

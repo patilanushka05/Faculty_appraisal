@@ -21,12 +21,20 @@ class QualificationEnhancementUpdateHOD(BaseModel):
 class QualificationEnhancementUpdateDirector(BaseModel):
     api_score_director: float
 
+class QualificationEnhancementUpdateDean(BaseModel):
+    api_score_dean: float
+
+class QualificationEnhancementUpdateVC(BaseModel):
+    api_score_vc: float
+
 class QualificationEnhancementResponse(QualificationEnhancementBase):
     id: UUID
     faculty_id: UUID
     api_score_faculty: float
     api_score_hod: float
     api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

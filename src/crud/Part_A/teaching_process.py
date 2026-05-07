@@ -7,6 +7,9 @@ from ...schema.Part_A.teaching_process import (
     TeachingProcessCreate,
     TeachingProcessUpdateFaculty,
     TeachingProcessUpdateHOD,
+    TeachingProcessUpdateDirector,
+    TeachingProcessUpdateDean,
+    TeachingProcessUpdateVC,
 )
 
 async def get_teaching_process(db: AsyncSession, id: str) -> Optional[TeachingProcess]:
@@ -59,3 +62,33 @@ async def delete_teaching_process(db: AsyncSession, id: str) -> bool:
 async def get_teaching_process_total_score(db: AsyncSession, faculty_id: str) -> float:
     entries = await get_teaching_process_by_faculty(db, faculty_id)
     return sum([e.api_score_faculty or 0.0 for e in entries])
+
+async def update_teaching_process_director(
+    db: AsyncSession, id: str, update: TeachingProcessUpdateDirector
+) -> Optional[TeachingProcess]:
+    db_obj = await get_teaching_process(db, id)
+    if db_obj:
+        db_obj.api_score_director = update.api_score_director
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_teaching_process_dean(
+    db: AsyncSession, id: str, update: TeachingProcessUpdateDean
+) -> Optional[TeachingProcess]:
+    db_obj = await get_teaching_process(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_teaching_process_vc(
+    db: AsyncSession, id: str, update: TeachingProcessUpdateVC
+) -> Optional[TeachingProcess]:
+    db_obj = await get_teaching_process(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

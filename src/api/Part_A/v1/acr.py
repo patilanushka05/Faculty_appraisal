@@ -9,9 +9,12 @@ from ....schema.Part_A.acr import (
     ACRCreate,
     ACRUpdateHOD,
     ACRUpdateDirector,
+    ACRUpdateDean,
+    ACRUpdateVC,
     ACRResponse,
 )
 from ....crud.Part_A import acr as crud_acr
+from ...utils import mask_scores
 
 router = APIRouter()
 
@@ -39,7 +42,7 @@ async def create_acr(
         department=department,
         document=document_path
     )
-    return await crud_acr.create_acr(db, acr_data)
+    return mask_scores(await crud_acr.create_acr(db, acr_data), current_user)
 
 @router.get("/acr/faculty/{faculty_id}", response_model=List[ACRResponse])
 async def read_acr_by_faculty(
@@ -49,7 +52,8 @@ async def read_acr_by_faculty(
 ):
     if not current_user.has_authority_over(faculty_id, "faculty"):
         raise HTTPException(status_code=403, detail="Not authorized")
-    return await crud_acr.get_acr_by_faculty(db, faculty_id)
+    res = await crud_acr.get_acr_by_faculty(db, faculty_id)
+    return mask_scores(res, current_user)
 
 @router.get("/acr", response_model=List[ACRResponse])
 async def read_all_acr(
@@ -61,14 +65,15 @@ async def read_all_acr(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin, dean, or vc can view all data")
     
     result = await db.execute(select(crud_acr.ACR))
-    return result.scalars().all()
+    res = result.scalars().all()
+    return mask_scores(list(res), current_user)
 
 @router.put("/acr/{id}", response_model=ACRResponse)
 async def update_acr(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     id: Annotated[str, Path()],
-    acr_update: ACRUpdateHOD,
+    acr_update: ACRUpdateHOD | ACRUpdateDirector | ACRUpdateDean | ACRUpdateVC,
 ):
     db_entry = await crud_acr.get_acr(db, id)
     if not db_entry:
@@ -77,14 +82,21 @@ async def update_acr(
     if not current_user.has_authority_over(db_entry.faculty_id, "faculty", db_entry.department):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if "hod" in current_user.roles:
-        return await crud_acr.update_acr_hod(db, id, acr_update)
+    res = None
+    if "admin" in current_user.roles:
+        res = await crud_acr.update_acr_hod(db, id, acr_update)
+    elif "vc" in current_user.roles:
+        res = await crud_acr.update_acr_vc(db, id, acr_update)
+    elif "dean" in current_user.roles:
+        res = await crud_acr.update_acr_dean(db, id, acr_update)
     elif "director" in current_user.roles:
-        return await crud_acr.update_acr_director(db, id, acr_update)
-    elif "admin" in current_user.roles:
-        return await crud_acr.update_acr_hod(db, id, acr_update)
+        res = await crud_acr.update_acr_director(db, id, acr_update)
+    elif "hod" in current_user.roles:
+        res = await crud_acr.update_acr_hod(db, id, acr_update)
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access for this role")
+    
+    return mask_scores(res, current_user)
 
 @router.get("/acr/summary/{faculty_id}")
 async def get_acr_summary(

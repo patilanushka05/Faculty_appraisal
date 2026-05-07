@@ -30,6 +30,12 @@ class ICTPedagogyUpdateHOD(BaseModel):
 class ICTPedagogyUpdateDirector(BaseModel):
     api_score_director: float
 
+class ICTPedagogyUpdateDean(BaseModel):
+    api_score_dean: float
+
+class ICTPedagogyUpdateVC(BaseModel):
+    api_score_vc: float
+
 # Schema for API response
 class ICTPedagogyResponse(ICTPedagogyBase):
     id: UUID

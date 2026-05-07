@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -9,9 +10,10 @@ from ....schema.Part_B.industrial_training import (
     IndustrialTrainingUpdateFaculty,
     IndustrialTrainingUpdateHOD,
     IndustrialTrainingUpdateDirector,
+    IndustrialTrainingUpdateDean,
+    IndustrialTrainingUpdateVC,
     IndustrialTrainingResponse,
-    IndustrialTrainingSummary,
-)
+    IndustrialTrainingSummary,)
 from ....crud.Part_B import industrial_training as crud_industrial_training
 from ....models.Part_B.industrial_training import IndustrialTraining as DBIndustrialTraining
 
@@ -42,7 +44,7 @@ async def create_industrial_training(
         document=document_path
     )
     
-    return await crud_industrial_training.create_industrial_training(db=db, training=training, faculty_id=current_user.id)
+    return mask_scores(await crud_industrial_training.create_industrial_training(db=db, training=training, faculty_id=current_user.id), current_user)
 
 @router.get("/industrial-training/faculty/{faculty_id}", response_model=List[IndustrialTrainingResponse])
 async def read_industrial_trainings_by_faculty(
@@ -76,7 +78,7 @@ async def update_industrial_training(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: CurrentUser,
     training_id: str = Path(...),
-    training_update: IndustrialTrainingUpdateFaculty = None
+    training_update: IndustrialTrainingUpdateFaculty | IndustrialTrainingUpdateHOD | IndustrialTrainingUpdateDirector | IndustrialTrainingUpdateDean | IndustrialTrainingUpdateVC = None
 ):
     db_training = await crud_industrial_training.get_industrial_training(db, training_id)
     if db_training is None:
@@ -86,7 +88,15 @@ async def update_industrial_training(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this industrial training entry")
 
     # Role-based update logic
-    if "admin" in current_user.roles:
+    if "vc" in current_user.roles:
+        if not isinstance(training_update, IndustrialTrainingUpdateVC):
+             raise HTTPException(status_code=400, detail="Invalid update schema for VC")
+        updated_training = await crud_industrial_training.update_industrial_training_vc(db, training_id, training_update)
+    elif "dean" in current_user.roles:
+        if not isinstance(training_update, IndustrialTrainingUpdateDean):
+             raise HTTPException(status_code=400, detail="Invalid update schema for Dean")
+        updated_training = await crud_industrial_training.update_industrial_training_dean(db, training_id, training_update)
+    elif "admin" in current_user.roles:
         updated_training = await crud_industrial_training.update_industrial_training_faculty(db, training_id, training_update)
     elif "hod" in current_user.roles:
         updated_training = await crud_industrial_training.update_industrial_training_hod(db, training_id, training_update)

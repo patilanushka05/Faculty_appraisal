@@ -27,19 +27,27 @@ class IPRUpdateFaculty(IPRBase):
 
 # Schema for HOD to update API score
 class IPRUpdateHOD(BaseModel):
-    research_score_hod: float
+    api_score_hod: float
 
 # Schema for Director to update API score
 class IPRUpdateDirector(BaseModel):
-    research_score_director: float
+    api_score_director: float
+
+class IPRUpdateDean(BaseModel):
+    api_score_dean: float
+
+class IPRUpdateVC(BaseModel):
+    api_score_vc: float
 
 # Schema for API response
 class IPRResponse(IPRBase):
     id: UUID
     faculty_id: UUID
-    research_score_faculty: float
-    research_score_hod: float
-    research_score_director: float
+    api_score_faculty: float
+    api_score_hod: float
+    api_score_director: float
+    api_score_dean: float
+    api_score_vc: float
 
     class Config:
         from_attributes = True

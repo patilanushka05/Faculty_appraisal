@@ -26,6 +26,8 @@ class JournalPublication(Base):
     api_score_faculty = Column(Double, name="score", default=0.0)
     api_score_hod = Column(Double, name="hod_score", default=0.0)
     api_score_director = Column(Double, name="director_score", default=0.0)
+    api_score_dean = Column(Double, name="dean_score", default=0.0)
+    api_score_vc = Column(Double, name="vc_score", default=0.0)
     # department and document also missing in production
     department = Column(String, nullable=True)
     document = Column(String, nullable=True)

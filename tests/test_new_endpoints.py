@@ -17,38 +17,46 @@ BASE_URL = "http://testserver"
 TEST_FACULTY_ID = "00000000-0000-0000-0000-000000000001"
 TEST_SCHOOL_ID = "00000000-0000-0000-0000-000000000000"
 
-@pytest.fixture(scope="module", autouse=True)
-def setup_test_data():
-    db = SessionLocal()
-    try:
-        # 1. Ensure School exists
-        school = db.query(School).filter(School.id == TEST_SCHOOL_ID).first()
-        if not school:
-            school = School(
-                id=TEST_SCHOOL_ID,
-                name="Test Engineering School",
-                division=DivisionEnum.ENGINEERING,
-                form_type=FormTypeEnum.TYPE_1
-            )
-            db.add(school)
-            db.commit()
-        
-        # 2. Ensure Faculty exists
-        faculty = db.query(Faculty).filter(Faculty.id == TEST_FACULTY_ID).first()
-        if not faculty:
-            faculty = Faculty(
-                id=TEST_FACULTY_ID,
-                name="Test Faculty",
-                email="test.faculty@example.com",
-                department="Computer Science",
-                role="faculty",
-                school_id=TEST_SCHOOL_ID
-            )
-            db.add(faculty)
-            db.commit()
-        yield
-    finally:
-        db.close()
+from sqlalchemy import select
+
+@pytest.fixture(scope="function", autouse=True)
+async def setup_test_data():
+    async with AsyncSessionLocal() as db:
+        try:
+            # 1. Ensure School exists
+            stmt = select(School).filter(School.id == TEST_SCHOOL_ID)
+            result = await db.execute(stmt)
+            school = result.scalar_one_or_none()
+            
+            if not school:
+                school = School(
+                    id=TEST_SCHOOL_ID,
+                    name="Test Engineering School",
+                    division=DivisionEnum.ENGINEERING,
+                    form_type=FormTypeEnum.TYPE_1
+                )
+                db.add(school)
+                await db.commit()
+            
+            # 2. Ensure Faculty exists
+            stmt = select(Faculty).filter(Faculty.id == TEST_FACULTY_ID)
+            result = await db.execute(stmt)
+            faculty = result.scalar_one_or_none()
+            
+            if not faculty:
+                faculty = Faculty(
+                    id=TEST_FACULTY_ID,
+                    name="Test Faculty",
+                    email="test.faculty@example.com",
+                    department="Computer Science",
+                    role="faculty",
+                    school_id=TEST_SCHOOL_ID
+                )
+                db.add(faculty)
+                await db.commit()
+            yield
+        finally:
+            await db.close()
 
 @pytest.fixture(autouse=True)
 def mock_storage_upload():

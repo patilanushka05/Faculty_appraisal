@@ -32,6 +32,13 @@ class ResearchAwardUpdateDirector(BaseModel):
     research_score_director: float
 
 # Schema for API response
+
+class ResearchAwardUpdateDean(BaseModel):
+    api_score_dean: float
+
+class ResearchAwardUpdateVC(BaseModel):
+    api_score_vc: float
+
 class ResearchAwardResponse(ResearchAwardBase):
     id: UUID
     faculty_id: UUID

@@ -8,7 +8,8 @@ from src.schema.Part_B.ict_pedagogy import (
     ICTPedagogyUpdateFaculty,
     ICTPedagogyUpdateHOD,
     ICTPedagogyUpdateDirector,
-)
+    ICTPedagogyUpdateDean,
+    ICTPedagogyUpdateVC,)
 
 async def get_ict_pedagogy(db: AsyncSession, pedagogy_id: str) -> Optional[ICTPedagogy]:
     result = await db.execute(select(ICTPedagogy).where(ICTPedagogy.id == pedagogy_id))
@@ -73,3 +74,23 @@ async def get_ict_pedagogies_total_score(db: AsyncSession, faculty_id: str) -> f
     pedagogies = result.scalars().all()
     total_score = sum([p.api_score_faculty or 0.0 for p in pedagogies])
     return total_score
+
+async def update_ict_pedagogy_dean(
+    db: AsyncSession, id: str, update: ICTPedagogyUpdateDean
+) -> Optional[ICTPedagogy]:
+    db_obj = await get_ict_pedagogy(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_ict_pedagogy_vc(
+    db: AsyncSession, id: str, update: ICTPedagogyUpdateVC
+) -> Optional[ICTPedagogy]:
+    db_obj = await get_ict_pedagogy(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

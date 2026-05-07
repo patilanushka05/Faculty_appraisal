@@ -8,7 +8,8 @@ from src.schema.Part_B.product_development import (
     ProductDevelopmentUpdateFaculty,
     ProductDevelopmentUpdateHOD,
     ProductDevelopmentUpdateDirector,
-)
+    ProductDevelopmentUpdateDean,
+    ProductDevelopmentUpdateVC,)
 
 async def get_product_development(db: AsyncSession, product_id: str) -> Optional[ProductDevelopment]:
     result = await db.execute(select(ProductDevelopment).where(ProductDevelopment.id == product_id))
@@ -73,3 +74,23 @@ async def get_product_developments_total_score(db: AsyncSession, faculty_id: str
     products = result.scalars().all()
     total_score = sum([p.api_score_faculty or 0.0 for p in products])
     return total_score
+
+async def update_product_development_dean(
+    db: AsyncSession, id: str, update: ProductDevelopmentUpdateDean
+) -> Optional[ProductDevelopment]:
+    db_obj = await get_product_development(db, id)
+    if db_obj:
+        db_obj.api_score_dean = update.api_score_dean
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj
+
+async def update_product_development_vc(
+    db: AsyncSession, id: str, update: ProductDevelopmentUpdateVC
+) -> Optional[ProductDevelopment]:
+    db_obj = await get_product_development(db, id)
+    if db_obj:
+        db_obj.api_score_vc = update.api_score_vc
+        await db.commit()
+        await db.refresh(db_obj)
+    return db_obj

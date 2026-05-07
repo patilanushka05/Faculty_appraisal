@@ -1,3 +1,4 @@
+from ...utils import mask_scores
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Annotated
@@ -12,7 +13,8 @@ from ....schema.Part_B.ipr import (
     IPRUpdateDirector,
     IPRResponse,
     IPRSummary,
-)
+    IPRUpdateDean,
+    IPRUpdateVC,)
 from ....crud.Part_B import ipr as crud_ipr
 from ....models.Part_B.ipr import IPR as DBIPR
 
@@ -47,7 +49,7 @@ async def create_ipr(
         document=document_path
     )
     
-    return await crud_ipr.create_ipr(db=db, ipr=ipr, faculty_id=current_user.id)
+    return mask_scores(await crud_ipr.create_ipr(db=db, ipr=ipr, faculty_id=current_user.id), current_user)
 
 @router.get("/ipr/faculty/{faculty_id}", response_model=List[IPRResponse])
 async def read_ipr_by_faculty(
