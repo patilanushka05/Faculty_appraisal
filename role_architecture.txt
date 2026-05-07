@@ -1,0 +1,43 @@
+Vice Chancellor (VC)
+│
+├── Teaching Staff
+│   │
+│   ├── Dean of Engineering
+│   │   ├── SoCSEA — School of Computer Science, Engineering & Applications
+│   │   │   ├── Director
+│   │   │   └── Faculty
+│   │   ├── SoBB — School of Bio-Engineering & Bio Science
+│   │   │   ├── Director
+│   │   │   └── Faculty
+│   │   ├── SoCE — School of Continual Education
+│   │   │   ├── Director
+│   │   │   └── Faculty
+│   │   └── SoEMR — School of Engineering Management & Research
+│   │       └── Director
+│   │           ├── HOD — Mechanical Engineering → Faculty
+│   │           ├── HOD — Civil Engineering → Faculty
+│   │           ├── HOD — Chemical Engineering → Faculty
+│   │           └── HOD — Semiconductor Engineering → Faculty
+│   │
+│   ├── Dean of Non-Engineering
+│   │   ├── SoC — School of Commerce & Management
+│   │   │   ├── Director
+│   │   │   └── Faculty
+│   │   ├── SoMCS — School of Media & Communication Studies
+│   │   │   ├── Director
+│   │   │   └── Faculty
+│   │   ├── CioD — School of Design
+│   │   │   ├── Director
+│   │   │   └── Faculty
+│   │   └── SoAA — School of Applied Arts
+│   │       ├── Director
+│   │       └── Faculty
+│   │
+│   └── Center for Interdisciplinary Studies and Research (CISR)
+│       └── Center Head
+│           └── Faculty
+│
+└── Non-Teaching Staff
+    └── Registrar
+        └── Reporting Officer
+            └── Staff

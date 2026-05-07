@@ -1,0 +1,106 @@
+from pydantic import BaseModel, EmailStr, ConfigDict
+from uuid import UUID
+from typing import Optional, List, Any
+from datetime import datetime
+
+class FacultyProfileBase(BaseModel):
+    email: EmailStr
+    full_name: str
+    employee_id: Optional[str] = None
+    qualification: Optional[str] = None
+    designation: Optional[str] = None
+    department: Optional[str] = None
+    school: Optional[str] = None
+    division: Optional[str] = None
+    form_family: Optional[str] = None
+    teaching_experience: Optional[str] = None
+    phone: Optional[str] = None
+    academic_year: Optional[str] = None
+    appraisal_role: str = 'faculty'
+    avatar: Optional[str] = None
+
+class FacultyProfileCreate(FacultyProfileBase):
+    password: str
+
+class FacultyProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    qualification: Optional[str] = None
+    designation: Optional[str] = None
+    department: Optional[str] = None
+    school: Optional[str] = None
+    division: Optional[str] = None
+    form_family: Optional[str] = None
+    teaching_experience: Optional[str] = None
+    phone: Optional[str] = None
+    academic_year: Optional[str] = None
+    avatar: Optional[str] = None
+
+class FacultyProfileResponse(FacultyProfileBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class FormSectionDefinitionBase(BaseModel):
+    code: str
+    form_family: str
+    part: str
+    section_key: str
+    title: str
+    max_marks: float
+    storage_table: Optional[str] = None
+    fields: List[Any] = []
+
+class FormSectionDefinitionResponse(FormSectionDefinitionBase):
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class DeclarationBase(BaseModel):
+    faculty_email: EmailStr
+    academic_year: str
+    part_a_total: float = 0
+    part_b_total: float = 0
+    grand_total: float = 0
+    status: str = 'Pending Review'
+
+class DeclarationResponse(DeclarationBase):
+    id: UUID
+    submitted_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class AppraisalDocumentBase(BaseModel):
+    faculty_email: EmailStr
+    academic_year: str
+    section: str
+    section_title: Optional[str] = None
+    max_marks: Optional[float] = None
+    row_no: Optional[int] = None
+    doc_key: Optional[str] = None
+    file_name: str
+    file_type: Optional[str] = None
+    file_url: Optional[str] = None
+    storage_path: Optional[str] = None
+
+class AppraisalDocumentResponse(AppraisalDocumentBase):
+    id: UUID
+    uploaded_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class AppraisalReviewBase(BaseModel):
+    faculty_email: EmailStr
+    academic_year: str
+    reviewer_email: Optional[EmailStr] = None
+    reviewer_role: str
+    part_a_score: float = 0
+    part_b_score: float = 0
+    total_score: float = 0
+    remarks: Optional[str] = None
+    status: str
+
+class AppraisalReviewResponse(AppraisalReviewBase):
+    id: UUID
+    reviewed_at: datetime
+    model_config = ConfigDict(from_attributes=True)

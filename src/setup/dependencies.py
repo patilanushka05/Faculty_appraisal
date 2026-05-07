@@ -12,14 +12,15 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 class User:
-    def __init__(self, id: str, roles: List[str], department: Optional[str] = None, school_id: Optional[str] = None, division: Optional[str] = None):
+    def __init__(self, id: str, email: str, roles: List[str], department: Optional[str] = None, school: Optional[str] = None, division: Optional[str] = None):
         self.id = id
+        self.email = email
         self.roles = [r.lower() for r in roles]
         self.department = department
-        self.school_id = school_id
+        self.school = school
         self.division = division
 
-    def has_authority_over(self, subordinate_id: str, subordinate_role: str, subordinate_dept: Optional[str] = None, subordinate_school_id: Optional[str] = None, subordinate_division: Optional[str] = None) -> bool:
+    def has_authority_over(self, subordinate_id: str, subordinate_role: str, subordinate_dept: Optional[str] = None, subordinate_school: Optional[str] = None, subordinate_division: Optional[str] = None) -> bool:
         """
         Implements Hierarchical Access Control:
         1. VC: All schools.
@@ -29,10 +30,13 @@ class User:
         """
         role_weights = {
             "faculty": 0,
+            "non_teaching_staff": 0,
             "staff": 0,
             "hod": 1,
+            "reporting_officer": 1.5,
             "section_head": 2,
             "director": 2,
+            "center_head": 2.5,
             "dean": 3,
             "registrar": 3.5,
             "vc": 4,
@@ -46,7 +50,7 @@ class User:
         sub_weight = role_weights.get(subordinate_role.lower(), 0)
 
         # Self-access
-        if str(self.id) == str(subordinate_id):
+        if str(self.id) == str(subordinate_id) or self.email == subordinate_id:
             return True
 
         # Hierarchy check
@@ -55,18 +59,22 @@ class User:
             if "vc" in self.roles or "registrar" in self.roles:
                 return True
             
+            # Center Head Access (Specifically for CISR)
+            if "center_head" in self.roles:
+                return self.division == "CISR" and subordinate_division == "CISR"
+            
             # Dean Access (Division Isolation)
             if "dean" in self.roles:
                 return self.division == subordinate_division
             
-            # Director or Section Head Access (School Isolation)
-            if "director" in self.roles or "section_head" in self.roles:
-                return str(self.school_id) == str(subordinate_school_id)
+            # Director, Section Head, or Reporting Officer Access (School/Unit Isolation)
+            if any(r in self.roles for r in ["director", "section_head", "reporting_officer"]):
+                return self.school == subordinate_school
             
             # HOD Access (Departmental/Horizontal Isolation)
             if "hod" in self.roles:
                 # Must be in the same school AND same department
-                return str(self.school_id) == str(subordinate_school_id) and self.department == subordinate_dept
+                return self.school == subordinate_school and self.department == subordinate_dept
                 
         return False
 
@@ -80,9 +88,10 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
             # Mock user for development/testing
             return User(
                 id="00000000-0000-0000-0000-000000000001", 
+                email="admin@example.com",
                 roles=["admin", "faculty"], 
                 department="Computer Science",
-                school_id="00000000-0000-0000-0000-000000000000",
+                school="SoCSEA",
                 division="Engineering"
             )
         else:
@@ -99,18 +108,20 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
             from .local_auth import decode_access_token
             payload = decode_access_token(token)
             
-            role = payload.get("role", "faculty")
+            role = payload.get("appraisal_role") or payload.get("role", "faculty")
             dept = payload.get("department")
-            school_id = payload.get("school_id")
+            school = payload.get("school")
             division = payload.get("division")
+            email = payload.get("email")
             
             roles = [role] if isinstance(role, str) else role
             
             return User(
                 id=payload.get("sub"), # JWT standard subject claim is 'sub'
+                email=email,
                 roles=roles, 
                 department=dept, 
-                school_id=school_id, 
+                school=school, 
                 division=division
             )
         else:
@@ -120,18 +131,20 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
                 user = user_response.user
                 
                 # Check both app_metadata and user_metadata for the role
-                role = user.app_metadata.get("role") or user.user_metadata.get("role") or "faculty"
+                role = user.app_metadata.get("appraisal_role") or user.app_metadata.get("role") or \
+                       user.user_metadata.get("appraisal_role") or user.user_metadata.get("role") or "faculty"
                 dept = user.user_metadata.get("department") or user.app_metadata.get("department")
-                school_id = user.user_metadata.get("school_id") or user.app_metadata.get("school_id")
+                school = user.user_metadata.get("school") or user.app_metadata.get("school")
                 division = user.user_metadata.get("division") or user.app_metadata.get("division")
                 
                 roles = [role] if isinstance(role, str) else role
                 
                 return User(
                     id=user.id, 
+                    email=user.email,
                     roles=roles, 
                     department=dept, 
-                    school_id=school_id, 
+                    school=school, 
                     division=division
                 )
     except Exception as e:
