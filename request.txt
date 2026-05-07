@@ -1,0 +1,17 @@
+Task: Fix a NameError in the fastapi-backend service.
+
+Issue: The application is failing to start because the Optional type hint is used but not imported in src/crud/part_a.py.
+
+Traceback Info:
+
+File: src/crud/part_a.py
+Line: ~40 (inside get_innovative_teaching)
+Error: NameError: name 'Optional' is not defined
+Instructions:
+
+Open src/crud/part_a.py.
+Check the imports at the top of the file.
+Add from typing import Optional to the import section.
+Alternatively, if the project uses Python 3.10+, you can replace the return type hint Optional[InnovativeTeaching] with InnovativeTeaching | None.
+Verify that other type hints used in that file (like AsyncSession) are also properly imported.
+Context: This error is currently causing a 503 Service Unavailable on the Cloud Run revision fastapi-backend-00026-zfd.

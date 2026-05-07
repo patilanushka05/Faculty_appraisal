@@ -59,7 +59,52 @@ async def get_non_teaching_subordinates(academic_year: str, current_user: Curren
 
 @router.put("/review/{email}")
 async def review_non_teaching(email: str, data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    data['staff_email'] = email
-    # Update totals based on role
-    # ... logic for ro_total vs registrar_total ...
-    return await crud.create_or_update_non_teaching_appraisal(db, data)
+    # 0. Authorization check
+    target_res = await db.execute(select(FacultyProfile).where(FacultyProfile.email == email))
+    target = target_res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Staff profile not found")
+    
+    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school, target.division):
+        raise HTTPException(status_code=403, detail="Not authorized to review this staff")
+
+    # 1. Update totals based on role
+    # Logic: If RO reviews, they update ro_total. If Registrar reviews, registrar_total.
+    # The frontend payload usually contains the updated scores in 'payload'.
+    
+    appr = await crud.get_non_teaching_appraisal(db, email, data['academic_year'])
+    if not appr:
+        raise HTTPException(status_code=404, detail="Appraisal not found")
+
+    # Mapping roles to database fields and next status
+    role_config = {
+        "reporting_officer": ("ro_total", "pending_registrar", "ro_reviewed_at"),
+        "registrar": ("registrar_total", "pending_vc", "registrar_reviewed_at"),
+        "vc": ("vc_total", "completed", "vc_reviewed_at")
+    }
+
+    # Identify primary reviewer role
+    primary_role = next((r for r in current_user.roles if r in role_config), None)
+    if not primary_role and "admin" not in current_user.roles:
+         raise HTTPException(status_code=403, detail="Invalid reviewer role")
+    
+    if "admin" in current_user.roles and not primary_role:
+        primary_role = "registrar" # Default admin review to registrar level
+
+    field, next_status, time_field = role_config[primary_role]
+    
+    # Update the appraisal object
+    appr.status = next_status
+    setattr(appr, time_field, datetime.utcnow())
+    
+    # If the payload contains the new total, save it
+    if 'payload' in data:
+        appr.payload = data['payload']
+        # Optionally extract totals from payload if not explicitly provided
+    
+    if 'total_score' in data: # Assume frontend sends this
+        setattr(appr, field, data['total_score'])
+
+    await db.commit()
+    await db.refresh(appr)
+    return appr

@@ -9,7 +9,12 @@ from typing import List, Optional
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/subordinates")
-async def get_subordinates(academic_year: str, schools: Optional[str] = None, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+async def get_subordinates(
+    current_user: CurrentUser,
+    academic_year: str = Query(...), 
+    schools: Optional[str] = None, 
+    db: AsyncSession = Depends(get_db)
+):
     # Role-based filtering
     query = select(FacultyProfile, Declaration).outerjoin(
         Declaration, FacultyProfile.email == Declaration.faculty_email
@@ -78,8 +83,14 @@ async def get_subordinates(academic_year: str, schools: Optional[str] = None, cu
 
 @router.get("/faculty/{email}")
 async def get_faculty_snapshot(email: str, academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    # Verify authority
-    # ... logic ...
+    # 0. Authorization check
+    target_res = await db.execute(select(FacultyProfile).where(FacultyProfile.email == email))
+    target = target_res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+    
+    if not current_user.has_authority_over(email, target.appraisal_role, target.department, target.school, target.division):
+        raise HTTPException(status_code=403, detail="Not authorized to view this faculty's data")
     
     res = await db.execute(select(AppraisalSnapshot).where(
         AppraisalSnapshot.faculty_email == email,

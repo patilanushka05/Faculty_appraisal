@@ -5,7 +5,7 @@ from src.models.part_a import (
     QualificationEnhancement, StudentFeedback, DepartmentActivity,
     UniversityActivity, SocialContribution, IndustryConnect, ACRScore
 )
-from typing import List, Type, Any
+from typing import List, Type, Any, Optional
 
 async def get_items_by_faculty(db: AsyncSession, model: Type[Any], email: str, year: str) -> List[Any]:
     result = await db.execute(select(model).where(
