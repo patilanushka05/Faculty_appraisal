@@ -1,28 +1,12 @@
-Service Issue Report: Bcrypt Hashing Failure in Cloud Run
-Context:
-The Cloud Run service faculty-appraisal-git (Project: facultyappraisal-495011) is returning 500 Internal Server Errors on the registration endpoint (POST /api/v1/auth/register).
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import traceback
 
-The Symptom:
-Even with short, valid passwords (e.g., "123456"), the application crashes with a ValueError: password cannot be longer than 72 bytes.
-
-Root Cause Analysis:
-Investigation of the Cloud Run stderr logs revealed a library compatibility conflict between passlib and bcrypt.
-
-Primary Exception: ValueError: password cannot be longer than 72 bytes.
-Hidden Trigger: Immediately preceding the crash, the logs show: AttributeError: module 'bcrypt' has no attribute '__about__'.
-The Conflict: This occurs because bcrypt version 4.0.0+ removed the __about__ attribute. Older versions of passlib (<=1.7.4) rely on this attribute to detect the backend. When it fails, passlib enters an unstable state and incorrectly handles the hashing buffer, leading to the misleading ValueError even for short strings.
-Files & Lines Involved:
-
-Endpoint: /app/src/api/v1/auth.py (Line 60, register function)
-Hashing Utility: /app/src/setup/local_auth.py (Line 22, get_password_hash)
-Library Internal: passlib/handlers/bcrypt.py (Line 620, _load_backend_mixin)
-Task for Dev Agent:
-Please perform the following steps to resolve the environment mismatch:
-
-Check Dependency Versions: Inspect requirements.txt or pyproject.toml.
-Apply Fix (Option A - Recommended): Pin bcrypt to a version compatible with passlib.
-Set bcrypt==3.2.0
-Set passlib==1.7.4
-Apply Fix (Option B - Modernize): If you prefer to keep bcrypt 4.0+, you must ensure passlib is not trying to use the legacy bcrypt backend.
-Try installing cryptography and setting pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") to see if it defaults to a compatible backend.
-Verification: After updating the dependencies, rebuild the Docker image and attempt a local registration with a short password to ensure the AttributeError is gone.
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {type(exc)._name_}: {str(exc)}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "type": type(exc)._name_}
+    )

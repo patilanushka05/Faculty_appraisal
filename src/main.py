@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import logging
 import time
 import os
+import traceback
 from .api.v1 import router as api_v1_router
 
 # Configure Logging
@@ -66,10 +67,26 @@ async def log_requests(request: Request, call_next):
 # Exception Handlers
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    logger.error(f"Database error: {str(exc)}")
+    logger.error(f"Database error on {request.method} {request.url.path}: {str(exc)}")
+    logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": "Database error occurred", "error": str(exc)}
+        content={"detail": "Database error occurred", "error": str(exc), "type": "SQLAlchemyError"}
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    error_msg = str(exc)
+    error_type = type(exc).__name__
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {error_type}: {error_msg}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": error_msg,
+            "type": error_type,
+            "path": request.url.path
+        }
     )
 
 # Include Versioned API

@@ -9,6 +9,10 @@ from src.models import part_b as models_b
 from sqlalchemy import select, delete
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/appraisal", tags=["Appraisal Form"])
 
@@ -28,24 +32,30 @@ async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: A
     academic_year = data.get('academic_year')
     payload = data.get('payload')
     
-    result = await db.execute(select(AppraisalSnapshot).where(
-        AppraisalSnapshot.faculty_email == current_user.email,
-        AppraisalSnapshot.academic_year == academic_year
-    ))
-    db_snapshot = result.scalar_one_or_none()
-    
-    if db_snapshot:
-        db_snapshot.payload = payload
-    else:
-        db_snapshot = AppraisalSnapshot(
-            faculty_email=current_user.email,
-            academic_year=academic_year,
-            payload=payload
-        )
-        db.add(db_snapshot)
-    
-    await db.commit()
-    return {"message": "Saved"}
+    try:
+        result = await db.execute(select(AppraisalSnapshot).where(
+            AppraisalSnapshot.faculty_email == current_user.email,
+            AppraisalSnapshot.academic_year == academic_year
+        ))
+        db_snapshot = result.scalar_one_or_none()
+        
+        if db_snapshot:
+            db_snapshot.payload = payload
+        else:
+            db_snapshot = AppraisalSnapshot(
+                faculty_email=current_user.email,
+                academic_year=academic_year,
+                payload=payload
+            )
+            db.add(db_snapshot)
+        
+        await db.commit()
+        return {"message": "Saved"}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error saving snapshot for {current_user.email}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Failed to save draft snapshot")
 
 async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[str, Any], form_family: str):
     """
@@ -117,50 +127,52 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
     form = data.get('form', {})
     totals = data.get('totals', {})
     
-    # Identify user's form family
-    from src.crud.core import get_faculty_by_email
-    from src.setup.dependencies import get_form_family
-    user = await get_faculty_by_email(db, current_user.email)
-    form_family = get_form_family(user.school) if user else "standard"
-    
-    # 1. Shred JSON into normalized tables
     try:
+        # Identify user's form family
+        from src.crud.core import get_faculty_by_email
+        from src.setup.dependencies import get_form_family
+        user = await get_faculty_by_email(db, current_user.email)
+        form_family = get_form_family(user.school) if user else "standard"
+        
+        # 1. Shred JSON into normalized tables
         await shred_form(db, current_user.email, academic_year, form, form_family)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to process form data: {str(e)}")
 
-    # 2. Update/Create Declaration
-    # Logic from instruction: grand_total max based on form type (620 / 555 / 575)
-    # The table declarations stores current score, we set status to Submitted.
-    from src.schema.core import DeclarationBase
-    decl_data = DeclarationBase(
-        faculty_email=current_user.email,
-        academic_year=academic_year,
-        part_a_total=totals.get('partATotal', 0),
-        part_b_total=totals.get('partBTotal', 0),
-        grand_total=totals.get('grandTotal', 0),
-        status='Submitted'
-    )
-    await create_or_update_declaration(db, decl_data)
-    
-    # 3. Update Snapshot (Draft -> Latest)
-    result = await db.execute(select(AppraisalSnapshot).where(
-        AppraisalSnapshot.faculty_email == current_user.email,
-        AppraisalSnapshot.academic_year == academic_year
-    ))
-    db_snapshot = result.scalar_one_or_none()
-    if db_snapshot:
-        db_snapshot.payload = data # Save the full submit payload
-    else:
-        db.add(AppraisalSnapshot(
+        # 2. Update/Create Declaration
+        from src.schema.core import DeclarationBase
+        decl_data = DeclarationBase(
             faculty_email=current_user.email,
             academic_year=academic_year,
-            payload=data
+            part_a_total=totals.get('partATotal', 0),
+            part_b_total=totals.get('partBTotal', 0),
+            grand_total=totals.get('grandTotal', 0),
+            status='Submitted'
+        )
+        await create_or_update_declaration(db, decl_data)
+        
+        # 3. Update Snapshot (Draft -> Latest)
+        result = await db.execute(select(AppraisalSnapshot).where(
+            AppraisalSnapshot.faculty_email == current_user.email,
+            AppraisalSnapshot.academic_year == academic_year
         ))
-    
-    await db.commit()
-    return {"message": "Submitted successfully", "submitted_at": datetime.utcnow().isoformat()}
+        db_snapshot = result.scalar_one_or_none()
+        if db_snapshot:
+            db_snapshot.payload = data # Save the full submit payload
+        else:
+            db.add(AppraisalSnapshot(
+                faculty_email=current_user.email,
+                academic_year=academic_year,
+                payload=data
+            ))
+        
+        await db.commit()
+        return {"message": "Submitted successfully", "submitted_at": datetime.utcnow().isoformat()}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error during appraisal submission for {current_user.email}: {str(e)}")
+        logger.error(traceback.format_exc())
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Submission failed: {str(e)}")
 
 @router.get("/status")
 async def get_appraisal_status(academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
