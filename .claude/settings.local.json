@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /mnt/c/Users/ruhan/Faculty_appraisal/)",
+      "Read(//mnt/c/Users/ruhan/**)",
+      "Bash(dir \"c:\\\\Users\\\\ruhan\\\\Faculty_appraisal\")"
+    ]
+  }
+}

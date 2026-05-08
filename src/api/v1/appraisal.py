@@ -7,7 +7,7 @@ from src.crud.core import create_or_update_declaration
 from src.models import part_a as models_a
 from src.models import part_b as models_b
 from sqlalchemy import select, delete, inspect as sa_inspect, Numeric as SANumeric, Integer as SAInteger, String as SAString
-from sqlalchemy.orm import flag_modified
+from sqlalchemy.orm.attributes import flag_modified
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import logging
