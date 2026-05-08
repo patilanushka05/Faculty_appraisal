@@ -73,7 +73,10 @@ async def review_non_teaching(email: str, data: Dict[str, Any], current_user: Cu
     # Logic: If RO reviews, they update ro_total. If Registrar reviews, registrar_total.
     # The frontend payload usually contains the updated scores in 'payload'.
     
-    appr = await crud.get_non_teaching_appraisal(db, email, data['academic_year'])
+    academic_year = data.get('academic_year')
+    if not academic_year:
+        raise HTTPException(status_code=422, detail="academic_year is required")
+    appr = await crud.get_non_teaching_appraisal(db, email, academic_year)
     if not appr:
         raise HTTPException(status_code=404, detail="Appraisal not found")
 
