@@ -17,14 +17,22 @@ conf = ConnectionConfig(
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
-
 async def send_verification_email(email: EmailStr, token: str):
     """
-    Sends a verification email with a link to the local verify endpoint.
+    Sends a verification email with a link to the verify endpoint.
     """
-    # Replace with the actual frontend or backend URL
-    verify_url = f"{os.getenv('APP_URL', 'http://localhost:8000')}/api/v1/auth/verify-email?token={token}"
-    
+    app_url = os.getenv("APP_URL", "http://localhost:8000").rstrip("/")
+
+    # Heuristic to fix accidentally duplicated Cloud Run suffixes
+    if app_url.endswith(".run.app.a.run.app"):
+        app_url = app_url.replace(".run.app.a.run.app", ".a.run.app")
+    elif app_url.endswith(".run.app") and not app_url.endswith(".a.run.app"):
+        # If it ends in .run.app but missing the .a, it might be misconfigured
+        # but we'll leave it unless we are sure. The user's screenshot has run.app.a.run.app
+        pass
+
+    verify_url = f"{app_url}/api/v1/auth/verify-email?token={token}"
+
     html = f"""
     <h3>Welcome to the Faculty Appraisal System</h3>
     <p>Please verify your email address by clicking the link below:</p>

@@ -22,13 +22,16 @@ origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:8000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8000",
     "https://dypfacultyappraisal.netlify.app",
     "https://69fd1393a8684b0fbfe337b7--facultyappraisalportal.netlify.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # explicit list, not "*"
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
