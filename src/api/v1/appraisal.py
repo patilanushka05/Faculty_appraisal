@@ -105,6 +105,9 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         items = section_data if isinstance(section_data, list) else [section_data]
         
         for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue  # skip strings/numbers, only process row objects
+
             kwargs = {
                 "faculty_email": email,
                 "academic_year": year,
