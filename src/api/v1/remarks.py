@@ -19,7 +19,7 @@ async def update_item_scores(db: AsyncSession, email: str, year: str, role: str,
     """
     column_map = {
         "hod": "hod_score",
-        "center_head": "center_head_score", # Note: schema has director_score, etc. but let's check
+        "center_head": "director_score", 
         "director": "director_score",
         "dean": "dean_score",
         "vc": "vc_score"

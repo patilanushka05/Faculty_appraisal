@@ -1,12 +1,177 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import traceback
+I can see several holes. Here's the complete list of issues and the full fixed code:
 
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {type(exc)._name_}: {str(exc)}")
-    logger.error(traceback.format_exc())
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc), "type": type(exc)._name_}
-    )
+Bugs found:
+
+Empty string '' → Numeric column (current error)
+String numbers like '10' → Numeric column (same root cause, will hit next)
+create_or_update_declaration and snapshot update are outside try-except — if either fails, no rollback, partial DB state
+academic_year=None crashes without a clear error
+totals values (partATotal etc.) can be empty strings — DeclarationBase will fail
+innovScore is sent by frontend but not in mappings — score never saved to InnovativeTeaching
+Here's the complete replacement for your submit_appraisal endpoint and shred_form:
+
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.setup.database import get_db
+from src.setup.dependencies import CurrentUser
+from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, AppraisalReview, FormSectionDefinition
+from src.crud.core import create_or_update_declaration
+from src.models import part_a as models_a
+from src.models import part_b as models_b
+from sqlalchemy import select, delete
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+
+router = APIRouter(prefix="/appraisal", tags=["Appraisal Form"])
+
+
+def _safe_db_value(value):
+    """Convert frontend form values to DB-compatible Python types."""
+    if value is None or value == '':
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped == '':
+            return None
+        try:
+            return int(stripped) if stripped.lstrip('-').isdigit() else float(stripped)
+        except (ValueError, TypeError):
+            pass
+    return value
+
+
+def _safe_num(value, default=0):
+    """Coerce a value to float for totals, falling back to default."""
+    if value is None or value == '':
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+@router.post("/submit")
+async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    academic_year = data.get('academic_year')
+    form = data.get('form', {})
+    totals = data.get('totals', {})
+
+    if not academic_year:
+        raise HTTPException(status_code=422, detail="academic_year is required")
+
+    from src.crud.core import get_faculty_by_email
+    from src.setup.dependencies import get_form_family
+    user = await get_faculty_by_email(db, current_user.email)
+    form_family = get_form_family(user.school) if user else "standard"
+
+    try:
+        await shred_form(db, current_user.email, academic_year, form, form_family)
+
+        from src.schema.core import DeclarationBase
+        decl_data = DeclarationBase(
+            faculty_email=current_user.email,
+            academic_year=academic_year,
+            part_a_total=_safe_num(totals.get('partATotal')),
+            part_b_total=_safe_num(totals.get('partBTotal')),
+            grand_total=_safe_num(totals.get('grandTotal')),
+            status='Submitted'
+        )
+        await create_or_update_declaration(db, decl_data)
+
+        result = await db.execute(select(AppraisalSnapshot).where(
+            AppraisalSnapshot.faculty_email == current_user.email,
+            AppraisalSnapshot.academic_year == academic_year
+        ))
+        db_snapshot = result.scalar_one_or_none()
+        if db_snapshot:
+            db_snapshot.payload = data
+        else:
+            db.add(AppraisalSnapshot(
+                faculty_email=current_user.email,
+                academic_year=academic_year,
+                payload=data
+            ))
+
+        await db.commit()
+        return {"message": "Submitted successfully", "submitted_at": datetime.utcnow().isoformat()}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Submission failed: {str(e)}")
+
+
+async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[str, Any], form_family: str):
+    mappings = {
+        "lectures": (models_a.TeachingProcess, "A1. Lectures / Tutorials / Practicals"),
+        "courseFile": (models_a.CourseFile, "A2. Course File"),
+        "innovDetails": (models_a.InnovativeTeaching, "A3. Innovative Teaching-Learning"),
+        "projects": (models_a.ProjectGuided, "A4. Projects"),
+        "quals": (models_a.QualificationEnhancement, "A5. Qualification Enhancement"),
+        "feedback": (models_a.StudentFeedback, "Student Feedback"),
+        "deptActs": (models_a.DepartmentActivity, "Departmental / School Activities"),
+        "uniActs": (models_a.UniversityActivity, "University Level Activities"),
+        "society": (models_a.SocialContribution, "Contribution to Society"),
+        "industry": (models_a.IndustryConnect, "Industry Connect"),
+        "acr": (models_a.ACRScore, "Annual Confidential Report - School Level"),
+        "journals": (models_b.JournalPublication, "B1. Research Papers / Journal Publications"),
+        "books": (models_b.BookPublication, "B2. Books / Book Chapters"),
+        "ict": (models_b.ICTPedagogy, "B3. ICT / E-Content / Pedagogy"),
+        "research": (models_b.ResearchGuidance, "B4(a). Research Guidance - PhD / PG"),
+        "projects2": (models_b.ResearchProject, "B4(b). Research / Consultancy Internal Projects"),
+        "externalProjects": (models_b.ExternalResearchProject, "B4(c). Research / Consultancy External Projects"),
+        "patents": (models_b.Patent, "B5(a). Patents (IPR)"),
+        "awards": (models_b.Award, "B5(b). Awards"),
+        "confs": (models_b.Conference, "B6. Invited Lectures / Resource Person / Paper Presentations"),
+        "proposals": (models_b.ResearchProposal, "B7(a). Submitted Research Proposals"),
+        "products": (models_b.ProductDeveloped, "B7(b). Product Developed and Used by Students"),
+        "fdps": (models_b.SelfDevelopment, "B8(a). FDP / Self Development"),
+        "training": (models_b.IndustrialTraining, "B8(b). Industrial Training"),
+    }
+
+    # Save innovScore into InnovativeTeaching separately
+    innov_score = _safe_db_value(form_data.get('innovScore'))
+
+    for key, (model, title) in mappings.items():
+        await db.execute(delete(model).where(
+            model.faculty_email == email,
+            model.academic_year == year
+        ))
+
+        section_data = form_data.get(key)
+        if not section_data and section_data != 0:
+            continue
+
+        items = section_data if isinstance(section_data, list) else [section_data]
+
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+
+            kwargs = {
+                "faculty_email": email,
+                "academic_year": year,
+                "form_family": form_family,
+                "section_title": title,
+            }
+            if hasattr(model, 'row_no'):
+                kwargs["row_no"] = idx + 1
+
+            # Apply innovScore to InnovativeTeaching score field
+            if model is models_a.InnovativeTeaching and innov_score is not None:
+                kwargs["score"] = innov_score
+
+            db_item = model(**kwargs)
+
+            for field_name, value in item.items():
+                if not hasattr(db_item, field_name):
+                    continue
+                safe_val = _safe_db_value(value)
+                if safe_val is None:
+                    continue  # let DB column defaults apply
+                setattr(db_item, field_name, safe_val)
+
+            db.add(db_item)
+One additional note: The frontend sends reviewer scores as hod, director, dean, vc but your model columns are hod_score, director_score etc. — those are silently dropped right now (no error, but data isn't saved). You'll need a field name mapping in shred_form to fix that when you're ready, but it won't cause a 500.
