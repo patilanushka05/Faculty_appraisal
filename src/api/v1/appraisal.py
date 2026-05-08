@@ -105,20 +105,21 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         items = section_data if isinstance(section_data, list) else [section_data]
         
         for idx, item in enumerate(items):
-            # Map common fields
-            db_item = model(
-                faculty_email=email,
-                academic_year=year,
-                form_family=form_family,
-                section_title=title,
-                row_no=idx + 1 if hasattr(model, 'row_no') else None
-            )
-            
-            # Map specific fields from JSON to Model columns
+            kwargs = {
+                "faculty_email": email,
+                "academic_year": year,
+                "form_family": form_family,
+                "section_title": title,
+            }
+            if hasattr(model, 'row_no'):
+                kwargs["row_no"] = idx + 1
+
+            db_item = model(**kwargs)
+
             for field_name, value in item.items():
                 if hasattr(db_item, field_name):
                     setattr(db_item, field_name, value)
-            
+
             db.add(db_item)
 
 @router.post("/submit")
