@@ -5,7 +5,9 @@
       "Bash(rm -f /c/Users/ruhan/Faculty_appraisal/api_docs/*.md)",
       "Bash(git -C c:/Users/ruhan/Faculty_appraisal status migrations/)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(python -m pytest tests/test_hierarchy_unit.py -q)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\ruhan\\Faculty_appraisal\\api_docs"
