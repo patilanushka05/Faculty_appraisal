@@ -22,12 +22,13 @@ origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:8000",
+    "https://dypfacultyappraisal.netlify.app",
     "https://69fd1393a8684b0fbfe337b7--facultyappraisalportal.netlify.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Temporarily allow all for debugging CORS
+    allow_origins=origins,  # explicit list, not "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

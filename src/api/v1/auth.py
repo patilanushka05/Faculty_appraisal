@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, EmailStr
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.setup.local_auth import create_access_token, verify_password, get_password_hash, decode_access_token
