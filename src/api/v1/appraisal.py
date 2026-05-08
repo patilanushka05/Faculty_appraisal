@@ -6,9 +6,9 @@ from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, A
 from src.crud.core import create_or_update_declaration
 from src.models import part_a as models_a
 from src.models import part_b as models_b
-from sqlalchemy import select, delete, inspect as sa_inspect, Numeric as SANumeric, Integer as SAInteger, String as SAString
+from sqlalchemy import select, delete, inspect as sa_inspect, Numeric as SANumeric, Integer as SAInteger, String as SAString, Date as SADate
 from sqlalchemy.orm.attributes import flag_modified
-from datetime import datetime
+from datetime import datetime, date as date_type
 from typing import Optional, List, Dict, Any
 import logging
 import traceback
@@ -39,6 +39,16 @@ def _coerce_for_column(model_instance, field_name, value):
                     return float(value)
                 except (ValueError, TypeError):
                     return None
+            elif isinstance(col_type, SADate):
+                if isinstance(value, date_type):
+                    return value
+                if isinstance(value, str):
+                    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+                        try:
+                            return datetime.strptime(value, fmt).date()
+                        except ValueError:
+                            continue
+                return None  # unparseable date — skip rather than crash asyncpg
             else:
                 # VARCHAR / Text / String — always convert to str
                 if isinstance(value, (int, float)):
