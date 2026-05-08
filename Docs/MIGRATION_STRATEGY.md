@@ -45,12 +45,43 @@ The client moves Database, Auth, and Storage to a private local network.
 *   **Changes Required:** 3 setup files.
 *   **Strategy:**
     *   **Database:** Standard local PostgreSQL.
-    *   **Auth:** Use a local provider (e.g., Keycloak, LDAP, or simple JWT-based auth).
-    *   **Storage:** Replace `src/setup/storage_utils.py` logic with local disk storage or an on-premise S3-compatible service like **MinIO**.
+    *   **Auth:** Built-in PostgreSQL auth (already implemented in `src/setup/local_auth.py`).
+    *   **Storage:** Local disk storage via the `uploads/` directory.
 
 ---
 
-## 3. Local Server Requirements
+## 3. Storage Migration Guide (GCS to Local)
+
+Moving from Google Cloud Storage to a local server is a two-step process involving data synchronization and configuration updates.
+
+### Step 1: Sync Data from Cloud
+Use the Google Cloud SDK (`gsutil`) to download all existing documents to the local server.
+```bash
+# Install gcloud CLI first
+# Run this from the project root on the local server
+gsutil -m rsync -r gs://your-gcs-bucket-name ./uploads
+```
+This preserves the directory structure (`{faculty_id}/{filename}`) required by the database.
+
+### Step 2: Update Configuration
+Update the `.env` file to disable GCP and enable Local Storage:
+```env
+USE_LOCAL_STORAGE="true"
+LOCAL_STORAGE_DIR="./uploads"
+
+# You can now safely remove GCP credentials
+GCP_STORAGE_BUCKET=""
+GCP_PROJECT_ID=""
+```
+
+### Step 3: Technical Implementation Details
+*   **Serving Files:** The backend is pre-configured to mount the `./uploads` directory as a static route (`/uploads`).
+*   **URL Logic:** When `USE_LOCAL_STORAGE` is enabled, the system automatically saves paths as `/uploads/faculty_id/file.pdf`. The frontend will be able to access these via `http://<backend-ip>/uploads/...`.
+*   **Security:** Ensure the `uploads/` directory on the local server has restricted OS-level permissions (e.g., `chmod 700` for the app user).
+
+---
+
+## 4. Local Server Requirements
 
 To maintain the current high-performance levels (<200ms latency), a local PostgreSQL server must meet the following specifications:
 

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import time
@@ -16,6 +17,14 @@ app = FastAPI(
     description="Final Backend API for Faculty Appraisal System",
     version="2.0.0",
 )
+
+# Mount Local Storage (for local migration support)
+# This allows serving files from the 'uploads' folder via http://backend/uploads/...
+if os.path.exists("./uploads"):
+    app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
+elif os.getenv("USE_LOCAL_STORAGE", "false").lower() == "true":
+    os.makedirs("./uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
 
 # CORS Configuration
 origins = [
