@@ -183,6 +183,7 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         db.add(innov)
 
     # 2. Handle all other sections (List of objects)
+    total_added = 0
     for key, (model, title) in mappings.items():
         # Clean existing records for this user/year/section to avoid duplicates on re-submit
         await db.execute(delete(model).where(
@@ -192,11 +193,13 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
 
         section_data = form_data.get(key)
         if not section_data and section_data != 0:
+            logger.debug(f"shred_form: skipping section '{key}' — no data")
             continue
-        
+
         # Handle both list and object inputs (some sections are single objects)
         items = section_data if isinstance(section_data, list) else [section_data]
-        
+
+        section_count = 0
         for idx, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
@@ -210,9 +213,9 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
             }
             if hasattr(model, "row_no"):
                 kwargs["row_no"] = idx + 1
-            
+
             db_item = model(**kwargs)
-            
+
             # Map specific fields from JSON to Model columns
             for field_name, value in item.items():
                 target_field = field_aliases.get(field_name, field_name)
@@ -221,8 +224,14 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
                 coerced = _coerce_for_column(db_item, target_field, value)
                 if coerced is not None:
                     setattr(db_item, target_field, coerced)
-            
+
             db.add(db_item)
+            section_count += 1
+
+        total_added += section_count
+        logger.info(f"shred_form: section '{key}' → {section_count} row(s) queued")
+
+    logger.info(f"shred_form: {total_added} total rows queued for {email}/{year}")
 
 @router.post("/submit")
 async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):

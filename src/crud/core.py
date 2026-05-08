@@ -48,22 +48,14 @@ async def get_declaration(db: AsyncSession, email: str, year: str) -> Optional[D
         raise
 
 async def create_or_update_declaration(db: AsyncSession, data: DeclarationBase) -> Declaration:
-    try:
-        db_decl = await get_declaration(db, data.faculty_email, data.academic_year)
-        if db_decl:
-            for key, value in data.model_dump().items():
-                setattr(db_decl, key, value)
-        else:
-            db_decl = Declaration(**data.model_dump())
-            db.add(db_decl)
-        await db.commit()
-        await db.refresh(db_decl)
-        return db_decl
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Error in create_or_update_declaration for {data.faculty_email}: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise
+    db_decl = await get_declaration(db, data.faculty_email, data.academic_year)
+    if db_decl:
+        for key, value in data.model_dump().items():
+            setattr(db_decl, key, value)
+    else:
+        db_decl = Declaration(**data.model_dump())
+        db.add(db_decl)
+    return db_decl
 
 # --- Appraisal Review CRUD ---
 async def get_reviews_by_faculty(db: AsyncSession, email: str, year: str) -> List[AppraisalReview]:

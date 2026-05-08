@@ -3,7 +3,10 @@
     "allow": [
       "Bash(ls /mnt/c/Users/ruhan/Faculty_appraisal/)",
       "Read(//mnt/c/Users/ruhan/**)",
-      "Bash(dir \"c:\\\\Users\\\\ruhan\\\\Faculty_appraisal\")"
+      "Bash(dir \"c:\\\\Users\\\\ruhan\\\\Faculty_appraisal\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ruhan\\\\Faculty_appraisal\\\\src\" -Recurse -File)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
     ]
   }
 }
