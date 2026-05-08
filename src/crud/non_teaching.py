@@ -3,6 +3,10 @@ from sqlalchemy import select, update, delete
 from src.models.non_teaching import NonTeachingAppraisal, NonTeachingPartAItem, NonTeachingPartBRating
 from typing import List, Optional, Any
 from uuid import UUID
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 async def get_non_teaching_appraisal(db: AsyncSession, email: str, year: str) -> Optional[NonTeachingAppraisal]:
     result = await db.execute(select(NonTeachingAppraisal).where(
@@ -12,16 +16,25 @@ async def get_non_teaching_appraisal(db: AsyncSession, email: str, year: str) ->
     return result.scalar_one_or_none()
 
 async def create_or_update_non_teaching_appraisal(db: AsyncSession, data: dict) -> NonTeachingAppraisal:
-    db_appr = await get_non_teaching_appraisal(db, data['staff_email'], data['academic_year'])
-    if db_appr:
-        for key, value in data.items():
-            setattr(db_appr, key, value)
-    else:
-        db_appr = NonTeachingAppraisal(**data)
-        db.add(db_appr)
-    await db.commit()
-    await db.refresh(db_appr)
-    return db_appr
+    try:
+        db_appr = await get_non_teaching_appraisal(db, data['staff_email'], data['academic_year'])
+        if db_appr:
+            for key, value in data.items():
+                if hasattr(db_appr, key):
+                    setattr(db_appr, key, value)
+        else:
+            # Filter data for only valid model fields
+            valid_data = {k: v for k, v in data.items() if hasattr(NonTeachingAppraisal, k)}
+            db_appr = NonTeachingAppraisal(**valid_data)
+            db.add(db_appr)
+        await db.commit()
+        await db.refresh(db_appr)
+        return db_appr
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error in create_or_update_non_teaching_appraisal: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise
 
 async def get_part_a_items(db: AsyncSession, email: str, year: str) -> List[NonTeachingPartAItem]:
     result = await db.execute(select(NonTeachingPartAItem).where(
