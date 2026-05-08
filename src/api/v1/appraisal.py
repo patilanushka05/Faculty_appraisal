@@ -6,7 +6,7 @@ from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, A
 from src.crud.core import create_or_update_declaration
 from src.models import part_a as models_a
 from src.models import part_b as models_b
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, inspect as sa_inspect, Numeric as SANumeric, Integer as SAInteger, String as SAString
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import logging
@@ -16,18 +16,34 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/appraisal", tags=["Appraisal Form"])
 
-def _safe_db_value(value):
-    """Convert frontend form values to DB-compatible Python types."""
-    if value is None or value == '':
+def _coerce_for_column(model_instance, field_name, value):
+    """Coerce value to match the actual DB column type."""
+    if value is None:
         return None
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped == '':
-            return None
-        try:
-            return int(stripped) if stripped.lstrip('-').isdigit() else float(stripped)
-        except (ValueError, TypeError):
-            pass
+    if isinstance(value, str) and value.strip() == '':
+        return None
+
+    try:
+        col = sa_inspect(type(model_instance)).columns.get(field_name)
+        if col is not None:
+            col_type = col.type
+            if isinstance(col_type, SAInteger):
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return None
+            elif isinstance(col_type, SANumeric):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+            else:
+                # VARCHAR / Text / String — always convert to str
+                if isinstance(value, (int, float)):
+                    return str(value)
+    except Exception:
+        pass
+
     return value
 
 def _safe_num(value, default=0):
@@ -114,7 +130,7 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
     }
 
     # Save innovScore into InnovativeTeaching separately
-    innov_score = _safe_db_value(form_data.get('innovScore'))
+    innov_score_raw = form_data.get('innovScore')
 
     for key, (model, title) in mappings.items():
         await db.execute(delete(model).where(
@@ -141,11 +157,11 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
             if hasattr(model, 'row_no'):
                 kwargs["row_no"] = idx + 1
 
-            # Apply innovScore to InnovativeTeaching score field if applicable
-            if model is models_a.InnovativeTeaching and innov_score is not None:
-                kwargs["score"] = innov_score
-
             db_item = model(**kwargs)
+
+            # Apply innovScore to InnovativeTeaching score field if applicable
+            if model is models_a.InnovativeTeaching and innov_score_raw is not None:
+                db_item.score = _coerce_for_column(db_item, 'score', innov_score_raw)
 
             # Field name mapping for reviewer scores and common frontend/backend mismatches
             field_map = {
@@ -160,10 +176,10 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
                 target_field = field_map.get(field_name, field_name)
                 if not hasattr(db_item, target_field):
                     continue
-                safe_val = _safe_db_value(value)
-                if safe_val is None:
+                coerced = _coerce_for_column(db_item, target_field, value)
+                if coerced is None:
                     continue  # let DB column defaults apply
-                setattr(db_item, target_field, safe_val)
+                setattr(db_item, target_field, coerced)
             
             db.add(db_item)
 
