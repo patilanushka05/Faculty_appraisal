@@ -1,0 +1,144 @@
+API DOCUMENTATION UPDATES - MAY 2026
+====================================
+
+The following changes have been made to the backend to support the updated Faculty Appraisal form.
+
+1. PART A: CONTRIBUTION TO SOCIETY
+----------------------------------
+Table Name: social_contributions
+Section Key (in JSON): "society"
+
+Updated Fields:
+- row_no (SN): Integer
+- activity: String (Renamed from 'label' to match 'Activity' in form)
+- status: String (For 'Yes/No' field)
+- details: String
+- score: Numeric (Score (Max 5))
+
+Example JSON Payload for "society" section:
+{
+  "society": [
+    {
+      "activity": "Induction Program",
+      "status": "Yes",
+      "details": "Details about induction program...",
+      "score": 5.0
+    },
+    {
+      "activity": "Unnat Bharat Abhiyan",
+      "status": "No",
+      "details": "",
+      "score": 0.0
+    }
+  ]
+}
+
+2. PART B: PATENTS (IPR)
+------------------------
+Table Name: patents
+Section Key (in JSON): "patents"
+
+Updated Fields:
+- title: String
+- type: String
+- scope: String (New field for 'National / International')
+- patent_date: Date (YYYY-MM-DD)
+- patent_status: String
+- file_no: String
+- score: Numeric
+
+Example JSON Payload for "patents" section:
+{
+  "patents": [
+    {
+      "title": "Innovative Cooling System",
+      "scope": "International",
+      "patent_date": "2026-05-08",
+      "patent_status": "Published",
+      "file_no": "PCT/IN/2026/001",
+      "score": 10.0
+    }
+  ]
+}
+
+3. PART B: AWARDS
+-----------------
+Table Name: awards
+Section Key (in JSON): "awards"
+
+Fields:
+- title: String (Award Title)
+- award_date: Date
+- agency: String
+- level: String
+- score: Numeric
+
+4. PART B: FDP / WORKSHOPS
+--------------------------
+Table Name: self_development
+Section Key (in JSON): "fdps"
+
+Fields:
+- program: String
+- duration: String
+- organization: String
+- score: Numeric
+
+5. PART B: INDUSTRIAL TRAINING
+------------------------------
+Table Name: industrial_training
+Section Key (in JSON): "training"
+
+Fields:
+- company: String
+- duration: String
+- nature: String
+- score: Numeric
+
+
+DATABASE CHANGES REQUIRED:
+--------------------------
+1. Table 'social_contributions':
+   - Rename column 'label' to 'activity'.
+   - Add column 'status' (TEXT).
+2. Table 'patents':
+   - Add column 'scope' (TEXT).
+
+ROBUSTNESS UPDATES (SUBMISSION BUG FIX):
+----------------------------------------
+The /submit endpoint has been updated to handle common field name mismatches and payload structure variations.
+
+1. PAYLOAD STRUCTURE:
+The backend now accepts the form data in both root level or nested under 'payload':
+{
+  "academic_year": "2025-26",
+  "form": { ... },
+  "totals": { ... }
+}
+OR
+{
+  "academic_year": "2025-26",
+  "payload": {
+    "form": { ... },
+    "totals": { ... }
+  }
+}
+
+2. FIELD ALIASES:
+You can use the descriptive field names from the individual POST docs; the bulk submit now maps them automatically:
+- journal_details -> journal
+- title_with_page_nos -> title
+- issn_isbn_no / issn_isbn -> issn
+- course_code_name -> course_code
+- course_paper -> course
+- nature_of_activity -> nature
+- activity_type -> activity
+- details_of_activity -> details
+- title_and_pages -> title
+- book_title_editor -> book
+- event_title -> title
+- hosting_organization -> organization
+- event_level -> level
+- company_industry -> company
+- duration_days -> duration
+- nature_of_training -> nature

@@ -86,6 +86,7 @@ class Patent(BasePartBModel):
     __tablename__ = "patents"
     title = Column(String)
     type = Column(String)
+    scope = Column(String)
     patent_date = Column(Date)
     patent_status = Column(String)
     file_no = Column(String)

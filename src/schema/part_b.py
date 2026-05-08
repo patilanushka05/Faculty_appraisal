@@ -120,6 +120,7 @@ class IPRRecordResponse(IPRRecordBase):
 class PatentBase(BasePartBSchema):
     title: Optional[str] = None
     type: Optional[str] = None
+    scope: Optional[str] = None
     patent_date: Optional[date] = None
     patent_status: Optional[str] = None
     file_no: Optional[str] = None

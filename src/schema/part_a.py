@@ -105,7 +105,8 @@ class UniversityActivityResponse(UniversityActivityBase):
 
 class SocialContributionBase(BasePartASchema):
     row_no: Optional[int] = None
-    label: Optional[str] = None
+    activity: Optional[str] = None
+    status: Optional[str] = None
     details: Optional[str] = None
 
 class SocialContributionResponse(SocialContributionBase):

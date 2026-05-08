@@ -71,7 +71,8 @@ class UniversityActivity(BasePartAModel):
 class SocialContribution(BasePartAModel):
     __tablename__ = "social_contributions"
     row_no = Column(Integer)
-    label = Column(String)
+    activity = Column(String)
+    status = Column(String)
     details = Column(String)
 
 class IndustryConnect(BasePartAModel):
