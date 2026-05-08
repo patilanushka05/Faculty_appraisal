@@ -1,4 +1,9 @@
 # .dockerignore - Files to exclude from Docker build context
+
+# Documentation — all docs live in Docs/, one line covers everything
+Docs/
+
+# Dev / tooling
 .git
 .github
 .claude
@@ -8,23 +13,15 @@ __pycache__
 *.pyo
 *.pyd
 .pytest_cache
+
+# Infra / config not needed in image
 tests/
 migrations/
 scripts/
-Docs/
-api_docs/
-references/
+cloudbuild.yaml
+CLAUDE.md
+README.md
 .env
 .env.example
 .python-version
-cloudbuild.yaml
-CLAUDE.md
-gemini.md
-project_complete_schema.sql
 output.txt
-README.md
-README.Docker.md
-schema.txt
-tables.txt
-*.docx
-*.pdf
