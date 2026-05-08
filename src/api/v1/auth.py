@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
@@ -7,8 +8,7 @@ from src.models.core import FacultyProfile
 from src.schema.core import FacultyProfileCreate, FacultyProfileUpdate
 from src.crud.core import get_faculty_by_email
 from src.setup.email_utils import send_verification_email
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+import os
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -88,24 +88,24 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
 
 @router.get("/verify-email")
 async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    frontend_login_url = os.getenv("FRONTEND_URL", "http://localhost:5173") + "/login"
     try:
         payload = decode_access_token(token)
         email = payload.get("email")
         if not email:
-            raise HTTPException(status_code=400, detail="Invalid token")
+            return RedirectResponse(url=f"{frontend_login_url}?error=invalid_token")
         
         user = await get_faculty_by_email(db, email)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            return RedirectResponse(url=f"{frontend_login_url}?error=user_not_found")
         
-        if user.is_verified:
-            return {"message": "Email already verified"}
+        if not user.is_verified:
+            user.is_verified = True
+            await db.commit()
             
-        user.is_verified = True
-        await db.commit()
-        return {"message": "Email verified successfully. You can now login."}
+        return RedirectResponse(url=f"{frontend_login_url}?verified=true")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Verification failed: {str(e)}")
+        return RedirectResponse(url=f"{frontend_login_url}?error=verification_failed")
 
 @router.get("/me")
 async def get_me(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):

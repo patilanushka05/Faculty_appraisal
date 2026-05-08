@@ -21,16 +21,17 @@ app = FastAPI(
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://faculty-appraisal-frontend.vercel.app", # Add your frontend URL here
-    "*",
+    "http://localhost:8000",
+    "https://69fd1393a8684b0fbfe337b7--facultyappraisalportal.netlify.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], # Temporarily allow all for debugging CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Process-Time"],
 )
 
 # Logging & Latency Middleware
