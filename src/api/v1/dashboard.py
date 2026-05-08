@@ -3,9 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser, ENGINEERING_SCHOOLS, NON_ENGINEERING_SCHOOLS
 from src.models.core import FacultyProfile, Declaration, AppraisalSnapshot, AppraisalReview
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from collections import defaultdict
 from typing import List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -17,10 +20,16 @@ async def get_subordinates(
     db: AsyncSession = Depends(get_db)
 ):
     # Role-based filtering
+    # Join Declaration filtered to the requested academic_year so we only get
+    # this year's submission data (not declarations from prior years).
     query = select(FacultyProfile, Declaration).outerjoin(
-        Declaration, FacultyProfile.email == Declaration.faculty_email
+        Declaration,
+        and_(
+            FacultyProfile.email == Declaration.faculty_email,
+            Declaration.academic_year == academic_year
+        )
     )
-    
+
     # 1. Authority filtering (School/Dept/Division)
     if "vc" in current_user.roles or "registrar" in current_user.roles:
         # VC/Registrar: Can see all schools, or filter by specific schools if provided
@@ -28,12 +37,17 @@ async def get_subordinates(
             school_list = schools.split(",")
             query = query.where(FacultyProfile.school.in_(school_list))
     elif "dean" in current_user.roles:
-        if current_user.school == "engineering":
+        dean_school = current_user.school
+        # Accept either the division label ("engineering"/"non_engineering")
+        # or an actual school code that belongs to a division — handles dean accounts
+        # registered with a specific school code instead of the division label.
+        if dean_school == "engineering" or dean_school in ENGINEERING_SCHOOLS:
             query = query.where(FacultyProfile.school.in_(ENGINEERING_SCHOOLS))
-        elif current_user.school == "non_engineering":
+        elif dean_school == "non_engineering" or dean_school in NON_ENGINEERING_SCHOOLS:
             query = query.where(FacultyProfile.school.in_(NON_ENGINEERING_SCHOOLS))
         else:
-            return []  # dean with no division set — show nothing
+            logger.warning(f"Dean {current_user.email} has unrecognised school value '{dean_school}' — returning empty")
+            return []
     elif "center_head" in current_user.roles:
         # Center Head: specifically for CISR
         query = query.where(FacultyProfile.school == "CISR")
