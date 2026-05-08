@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
-from src.setup.local_auth import create_access_token, verify_password, get_password_hash
+from src.setup.local_auth import create_access_token, verify_password, get_password_hash, decode_access_token
 from src.models.core import FacultyProfile
 from src.schema.core import FacultyProfileCreate, FacultyProfileUpdate
 from src.crud.core import get_faculty_by_email
+from src.setup.email_utils import send_verification_email
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
@@ -24,6 +25,9 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = await get_faculty_by_email(db, data.email)
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Email not verified. Please check your inbox.")
     
     token = create_access_token({
         "sub": str(user.id),
@@ -66,24 +70,42 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
         employee_id=data.employee_id,
         phone=data.phone,
         qualification=data.qualification,
-        teaching_experience=data.teaching_experience
+        teaching_experience=data.teaching_experience,
+        is_verified=False
     )
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
     
+    # Send verification email
+    verify_token = create_access_token({"sub": str(new_user.id), "email": new_user.email})
+    await send_verification_email(new_user.email, verify_token)
+    
     return {
-        "email": new_user.email,
-        "full_name": new_user.full_name,
-        "role": new_user.appraisal_role,
-        "appraisal_role": new_user.appraisal_role,
-        "department": new_user.department,
-        "school": new_user.school,
-        "employee_id": new_user.employee_id,
-        "designation": new_user.designation,
-        "phone": new_user.phone,
-        "profile_picture_url": new_user.avatar
+        "message": "Registration successful. Please check your email to verify your account.",
+        "email": new_user.email
     }
+
+@router.get("/verify-email")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    try:
+        payload = decode_access_token(token)
+        email = payload.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Invalid token")
+        
+        user = await get_faculty_by_email(db, email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if user.is_verified:
+            return {"message": "Email already verified"}
+            
+        user.is_verified = True
+        await db.commit()
+        return {"message": "Email verified successfully. You can now login."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Verification failed: {str(e)}")
 
 @router.get("/me")
 async def get_me(current_user: CurrentUser, db: AsyncSession = Depends(get_db)):

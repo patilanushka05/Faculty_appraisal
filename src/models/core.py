@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, JSON, DateTime, Date
+from sqlalchemy import Column, String, Numeric, Integer, ForeignKey, JSON, DateTime, Date, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -20,6 +20,7 @@ class FacultyProfile(Base):
     phone = Column(String)
     academic_year = Column(String)
     appraisal_role = Column(String, nullable=False, default='faculty')
+    is_verified = Column(Boolean, default=False)
     avatar = Column(String)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -21,6 +21,7 @@ app = FastAPI(
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://faculty-appraisal-frontend.vercel.app", # Add your frontend URL here
     "*",
 ]
 
@@ -32,14 +33,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Latency Middleware
+# Logging & Latency Middleware
 @app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
+async def log_requests(request: Request, call_next):
     start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = str(process_time)
-    return response
+    logger.info(f"Incoming request: {request.method} {request.url.path}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.info(f"Request {request.method} {request.url.path} completed in {process_time:.4f}s")
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+    except Exception as e:
+        logger.error(f"Request failed: {request.method} {request.url.path} - Error: {str(e)}")
+        raise e
 
 # Exception Handlers
 @app.exception_handler(SQLAlchemyError)
