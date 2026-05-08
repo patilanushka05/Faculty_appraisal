@@ -72,13 +72,17 @@ def get_form_family(school: str) -> str:
     """
     Maps a school code to a form family (standard, media, design).
     """
+    if not school:
+        return "standard"
+        
+    s = school.strip()
     school_map = {
         "SoCSEA": "standard", "SoBB": "standard", "SoCE": "standard", 
         "SoEMR": "standard", "SoC": "standard", "CISR": "standard",
         "SoMCS": "media",
         "CioD": "design", "SoAA": "design"
     }
-    return school_map.get(school, "standard")
+    return school_map.get(s, "standard")
 
 async def get_current_user(authorization: Annotated[Optional[str], Header()] = None) -> User:
     """

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, EmailStr
 from src.setup.database import get_db
 from src.setup.dependencies import CurrentUser
 from src.setup.local_auth import create_access_token, verify_password, get_password_hash, decode_access_token
@@ -9,6 +10,9 @@ from src.schema.core import FacultyProfileCreate, FacultyProfileUpdate
 from src.crud.core import get_faculty_by_email
 from src.setup.email_utils import send_verification_email
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -88,23 +92,30 @@ async def register(data: FacultyProfileCreate, db: AsyncSession = Depends(get_db
 
 @router.get("/verify-email")
 async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
-    frontend_login_url = os.getenv("FRONTEND_URL", "http://localhost:5173") + "/login"
+    frontend_login_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/") + "/login"
     try:
+        logger.info("Email verification attempt started.")
         payload = decode_access_token(token)
         email = payload.get("email")
         if not email:
+            logger.warning("Email verification failed: No email in token.")
             return RedirectResponse(url=f"{frontend_login_url}?error=invalid_token")
         
         user = await get_faculty_by_email(db, email)
         if not user:
+            logger.warning(f"Email verification failed: User {email} not found.")
             return RedirectResponse(url=f"{frontend_login_url}?error=user_not_found")
         
         if not user.is_verified:
             user.is_verified = True
             await db.commit()
+            logger.info(f"Email verification successful for {email}.")
+        else:
+            logger.info(f"Email already verified for {email}.")
             
         return RedirectResponse(url=f"{frontend_login_url}?verified=true")
     except Exception as e:
+        logger.error(f"Email verification exception: {str(e)}")
         return RedirectResponse(url=f"{frontend_login_url}?error=verification_failed")
 
 @router.get("/me")

@@ -6,69 +6,100 @@ from src.models.core import AppraisalSnapshot, Declaration, AppraisalDocument, A
 from src.crud.core import create_or_update_declaration
 from src.models import part_a as models_a
 from src.models import part_b as models_b
-from sqlalchemy import select, delete, inspect as sa_inspect
-from sqlalchemy.types import Integer as SAInteger, Numeric as SANumeric
+from sqlalchemy import select, delete, inspect as sa_inspect, Numeric as SANumeric, Integer as SAInteger, String as SAString
 from sqlalchemy.orm import flag_modified
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/appraisal", tags=["Appraisal Form"])
 
-def _coerce_for_column(instance, field_name: str, value):
-    """Coerce value to the correct Python type for the given SQLAlchemy column."""
+def _coerce_for_column(model_instance, field_name, value):
+    """Coerce value to match the actual DB column type."""
     if value is None:
         return None
     if isinstance(value, str) and value.strip() == '':
         return None
+
     try:
-        col = sa_inspect(type(instance)).columns.get(field_name)
+        col = sa_inspect(type(model_instance)).columns.get(field_name)
         if col is not None:
-            if isinstance(col.type, SAInteger):
-                return int(float(value))
-            elif isinstance(col.type, SANumeric):
-                return float(value)
+            col_type = col.type
+            if isinstance(col_type, SAInteger):
+                try:
+                    # Handle case where value might be a float string like "5.0"
+                    return int(float(value))
+                except (ValueError, TypeError):
+                    return None
+            elif isinstance(col_type, SANumeric):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
             else:
+                # VARCHAR / Text / String — always convert to str
                 if isinstance(value, (int, float)):
                     return str(value)
     except Exception:
         pass
+
     return value
+
+def _safe_num(value, default=0):
+    """Coerce a value to float for totals, falling back to default."""
+    if value is None or value == '':
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
 
 @router.get("/snapshot")
 async def get_snapshot(academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AppraisalSnapshot).where(
-        AppraisalSnapshot.faculty_email == current_user.email,
-        AppraisalSnapshot.academic_year == academic_year
-    ))
-    snapshot = result.scalar_one_or_none()
-    if not snapshot:
+    try:
+        result = await db.execute(select(AppraisalSnapshot).where(
+            AppraisalSnapshot.faculty_email == current_user.email,
+            AppraisalSnapshot.academic_year == academic_year
+        ))
+        snapshot = result.scalar_one_or_none()
+        return snapshot
+    except Exception as e:
+        logger.error(f"Error fetching snapshot: {str(e)}")
         return None
-    return snapshot
 
 @router.put("/snapshot")
 async def upsert_snapshot(data: Dict[str, Any], current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
     academic_year = data.get('academic_year')
     payload = data.get('payload')
     
-    result = await db.execute(select(AppraisalSnapshot).where(
-        AppraisalSnapshot.faculty_email == current_user.email,
-        AppraisalSnapshot.academic_year == academic_year
-    ))
-    db_snapshot = result.scalar_one_or_none()
-    
-    if db_snapshot:
-        db_snapshot.payload = payload
-        flag_modified(db_snapshot, "payload")
-    else:
-        db_snapshot = AppraisalSnapshot(
-            faculty_email=current_user.email,
-            academic_year=academic_year,
-            payload=payload
-        )
-        db.add(db_snapshot)
-    
-    await db.commit()
-    return {"message": "Saved"}
+    try:
+        result = await db.execute(select(AppraisalSnapshot).where(
+            AppraisalSnapshot.faculty_email == current_user.email,
+            AppraisalSnapshot.academic_year == academic_year
+        ))
+        db_snapshot = result.scalar_one_or_none()
+        
+        if db_snapshot:
+            db_snapshot.payload = payload
+            flag_modified(db_snapshot, "payload")
+        else:
+            db_snapshot = AppraisalSnapshot(
+                faculty_email=current_user.email,
+                academic_year=academic_year,
+                payload=payload
+            )
+            db.add(db_snapshot)
+        
+        await db.commit()
+        return {"message": "Saved"}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error saving snapshot for {current_user.email}: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Failed to save draft snapshot")
 
 async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[str, Any], form_family: str):
     """
@@ -123,7 +154,12 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         "pedagogy_type": "type",
         "company_industry": "company",
         "duration_days": "duration",
-        "nature_of_training": "nature"
+        "nature_of_training": "nature",
+        "hod": "hod_score",
+        "director": "director_score",
+        "dean": "dean_score",
+        "vc": "vc_score",
+        "maxMarks": "max_marks"
     }
 
     # 1. Handle InnovativeTeaching separately (Scalar text field)
@@ -132,7 +168,9 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         models_a.InnovativeTeaching.academic_year == year
     ))
     innov_details = form_data.get("innovDetails")
-    if innov_details:
+    innov_score_raw = form_data.get('innovScore')
+    
+    if innov_details or innov_score_raw:
         innov = models_a.InnovativeTeaching(
             faculty_email=email,
             academic_year=year,
@@ -140,6 +178,8 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
             section_title="A3. Innovative Teaching-Learning",
             details=str(innov_details) if not isinstance(innov_details, dict) else innov_details.get("details")
         )
+        if innov_score_raw is not None:
+            innov.score = _coerce_for_column(innov, 'score', innov_score_raw)
         db.add(innov)
 
     # 2. Handle all other sections (List of objects)
@@ -151,7 +191,7 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
         ))
 
         section_data = form_data.get(key)
-        if not section_data:
+        if not section_data and section_data != 0:
             continue
         
         # Handle both list and object inputs (some sections are single objects)
@@ -175,14 +215,12 @@ async def shred_form(db: AsyncSession, email: str, year: str, form_data: Dict[st
             
             # Map specific fields from JSON to Model columns
             for field_name, value in item.items():
-                # Direct match
-                if hasattr(db_item, field_name):
-                    setattr(db_item, field_name, _coerce_for_column(db_item, field_name, value))
-                # Alias match
-                elif field_name in field_aliases:
-                    target = field_aliases[field_name]
-                    if hasattr(db_item, target):
-                        setattr(db_item, target, _coerce_for_column(db_item, target, value))
+                target_field = field_aliases.get(field_name, field_name)
+                if not hasattr(db_item, target_field):
+                    continue
+                coerced = _coerce_for_column(db_item, target_field, value)
+                if coerced is not None:
+                    setattr(db_item, target_field, coerced)
             
             db.add(db_item)
 
@@ -202,15 +240,18 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
     if not form:
         raise HTTPException(status_code=400, detail="Form data is missing. Ensure 'form' or 'payload.form' key is present.")
 
+    if not academic_year:
+        raise HTTPException(status_code=422, detail="academic_year is required")
+
     totals = totals or {}
     
-    # Identify user's form family
-    from src.crud.core import get_faculty_by_email
-    from src.setup.dependencies import get_form_family
-    user = await get_faculty_by_email(db, current_user.email)
-    form_family = get_form_family(user.school) if user else "standard"
-    
     try:
+        # Identify user's form family
+        from src.crud.core import get_faculty_by_email
+        from src.setup.dependencies import get_form_family
+        user = await get_faculty_by_email(db, current_user.email)
+        form_family = get_form_family(user.school) if user else "standard"
+        
         # 1. Shred JSON into normalized tables
         await shred_form(db, current_user.email, academic_year, form, form_family)
 
@@ -219,9 +260,9 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
         decl_data = DeclarationBase(
             faculty_email=current_user.email,
             academic_year=academic_year,
-            part_a_total=totals.get('partATotal', 0),
-            part_b_total=totals.get('partBTotal', 0),
-            grand_total=totals.get('grandTotal', 0),
+            part_a_total=_safe_num(totals.get('partATotal')),
+            part_b_total=_safe_num(totals.get('partBTotal')),
+            grand_total=_safe_num(totals.get('grandTotal')),
             status='Submitted'
         )
         await create_or_update_declaration(db, decl_data)
@@ -243,27 +284,34 @@ async def submit_appraisal(data: Dict[str, Any], current_user: CurrentUser, db: 
             ))
         
         await db.commit()
+        return {"message": "Submitted successfully", "submitted_at": datetime.utcnow().isoformat()}
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
+        logger.error(f"Error during appraisal submission for {current_user.email}: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Submission failed: {str(e)}")
-
-    return {"message": "Submitted successfully", "submitted_at": datetime.utcnow().isoformat()}
 
 @router.get("/status")
 async def get_appraisal_status(academic_year: str, current_user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    decl_res = await db.execute(select(Declaration).where(
-        Declaration.faculty_email == current_user.email,
-        Declaration.academic_year == academic_year
-    ))
-    declaration = decl_res.scalar_one_or_none()
-    
-    rev_res = await db.execute(select(AppraisalReview).where(
-        AppraisalReview.faculty_email == current_user.email,
-        AppraisalReview.academic_year == academic_year
-    ))
-    reviews = rev_res.scalars().all()
-    
-    return {
-        "declaration": declaration,
-        "reviews": reviews
-    }
+    try:
+        decl_res = await db.execute(select(Declaration).where(
+            Declaration.faculty_email == current_user.email,
+            Declaration.academic_year == academic_year
+        ))
+        declaration = decl_res.scalar_one_or_none()
+        
+        rev_res = await db.execute(select(AppraisalReview).where(
+            AppraisalReview.faculty_email == current_user.email,
+            AppraisalReview.academic_year == academic_year
+        ))
+        reviews = rev_res.scalars().all()
+        
+        return {
+            "declaration": declaration,
+            "reviews": reviews
+        }
+    except Exception as e:
+        logger.error(f"Error fetching status: {str(e)}")
+        return {"declaration": None, "reviews": []}

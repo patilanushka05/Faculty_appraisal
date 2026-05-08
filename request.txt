@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 I can see exactly what's wrong. There are 4 bugs in the code you shared:
 
 row_no=None always passed — the ternary always passes the kwarg even when the model doesn't have that column, which crashes SQLAlchemy
@@ -16,10 +17,24 @@ from sqlalchemy.orm import flag_modified
 
 def _coerce_for_column(instance, field_name: str, value):
     """Coerce value to the correct Python type for the given SQLAlchemy column."""
+=======
+The _safe_db_value helper is too aggressive — it converts '2' (string) to 2 (int), then asyncpg rejects an int going into a VARCHAR column. We need column-type-aware coercion.
+
+Replace _safe_db_value and the field-setting loop in shred_form with this:
+
+
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import Numeric as SANumeric, Integer as SAInteger, String as SAString
+
+
+def _coerce_for_column(model_instance, field_name, value):
+    """Coerce value to match the actual DB column type."""
+>>>>>>> refs/remotes/origin/main
     if value is None:
         return None
     if isinstance(value, str) and value.strip() == '':
         return None
+<<<<<<< HEAD
     try:
         col = sa_inspect(type(instance)).columns.get(field_name)
         if col is not None:
@@ -28,10 +43,30 @@ def _coerce_for_column(instance, field_name: str, value):
             elif isinstance(col.type, SANumeric):
                 return float(value)
             else:
+=======
+
+    try:
+        col = sa_inspect(type(model_instance)).columns.get(field_name)
+        if col is not None:
+            col_type = col.type
+            if isinstance(col_type, SAInteger):
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    return None
+            elif isinstance(col_type, SANumeric):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+            else:
+                # VARCHAR / Text / String — always convert to str
+>>>>>>> refs/remotes/origin/main
                 if isinstance(value, (int, float)):
                     return str(value)
     except Exception:
         pass
+<<<<<<< HEAD
     return value
 
 
@@ -189,3 +224,18 @@ async def submit_appraisal(
 One more thing to check: after deploying this, if data still shows up as NULL in the tables (rows exist but all blank), that means the frontend field names don't match your model column names. For example, if TeachingProcess has a column subject_code but the frontend sends code, the hasattr check silently skips it.
 
 To diagnose that, share your part_a.py and part_b.py model files and I'll add an explicit field-name mapping for each section.
+=======
+
+    return value
+And update the field-setting loop inside shred_form:
+
+
+for field_name, value in item.items():
+    if not hasattr(db_item, field_name):
+        continue
+    coerced = _coerce_for_column(db_item, field_name, value)
+    if coerced is None:
+        continue  # let DB defaults apply
+    setattr(db_item, field_name, coerced)
+Also remove the old _safe_db_value function entirely — _coerce_for_column replaces it completely. The _safe_num helper for totals can stay as-is.
+>>>>>>> refs/remotes/origin/main

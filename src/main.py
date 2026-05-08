@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import time
 import os
+import traceback
 from .api.v1 import router as api_v1_router
 
 # Configure Logging
@@ -17,17 +19,29 @@ app = FastAPI(
     version="2.0.0",
 )
 
+# Mount Local Storage (for local migration support)
+# This allows serving files from the 'uploads' folder via http://backend/uploads/...
+if os.path.exists("./uploads"):
+    app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
+elif os.getenv("USE_LOCAL_STORAGE", "false").lower() == "true":
+    os.makedirs("./uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="./uploads"), name="uploads")
+
 # CORS Configuration
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:8000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8000",
+    "https://dypfacultyappraisal.netlify.app",
     "https://69fd1393a8684b0fbfe337b7--facultyappraisalportal.netlify.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Temporarily allow all for debugging CORS
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,10 +67,26 @@ async def log_requests(request: Request, call_next):
 # Exception Handlers
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    logger.error(f"Database error: {str(exc)}")
+    logger.error(f"Database error on {request.method} {request.url.path}: {str(exc)}")
+    logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": "Database error occurred", "error": str(exc)}
+        content={"detail": "Database error occurred", "error": str(exc), "type": "SQLAlchemyError"}
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    error_msg = str(exc)
+    error_type = type(exc).__name__
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {error_type}: {error_msg}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": error_msg,
+            "type": error_type,
+            "path": request.url.path
+        }
     )
 
 # Include Versioned API
