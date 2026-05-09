@@ -2,8 +2,8 @@ __pycache__/
 -p/ 
 .venv/
 skills/
-migrations/
-
+.claude/
+chat/
 
 .env
 api_docs.zip
