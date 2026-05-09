@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import time
@@ -40,6 +41,10 @@ ALLOWED_ORIGINS = [
     "https://dypfacultyappraisal.netlify.app",
     "https://69fd1393a8684b0fbfe337b7--facultyappraisalportal.netlify.app",
 ]
+
+# Trust X-Forwarded-Proto from Cloud Run's load balancer so that URL generation
+# (and sqladmin's post-login redirects) use https:// instead of http://.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 app.add_middleware(
     CORSMiddleware,
