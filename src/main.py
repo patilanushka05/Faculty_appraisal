@@ -2,12 +2,14 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 import time
 import os
 import traceback
 from .api.v1 import router as api_v1_router
+from .setup.admin_views import create_admin
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -46,6 +48,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Process-Time"],
+)
+
+# SessionMiddleware is required by sqladmin for its /admin web UI login flow.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET_KEY", "fallback-secret-change-in-production"),
 )
 
 def _cors_headers(request: Request) -> dict:
@@ -103,6 +111,9 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 # Include Versioned API
 app.include_router(api_v1_router, prefix="/api/v1")
+
+# Mount sqladmin at /admin (login-protected, admin role only)
+create_admin(app)
 
 @app.get("/")
 def read_root():

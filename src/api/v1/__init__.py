@@ -6,6 +6,7 @@ from .dashboard import router as dashboard_router
 from .remarks import router as remarks_router
 from .non_teaching import router as non_teaching_router
 from .upload import router as upload_router
+from .admin import router as admin_router
 
 router = APIRouter()
 
@@ -16,3 +17,4 @@ router.include_router(dashboard_router)
 router.include_router(remarks_router)
 router.include_router(non_teaching_router)
 router.include_router(upload_router)
+router.include_router(admin_router)
